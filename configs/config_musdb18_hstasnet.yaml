@@ -1,0 +1,54 @@
+audio:
+  sample_rate: 44100
+  num_channels: 2
+  hop_length: 512
+  n_fft: 1024
+  chunk_size: 131584
+  min_mean_abs: 0.0
+
+model:
+  num_channels: 2
+  num_sources: 4
+  time_win_size: 1024
+  time_hop_size: 512
+  spec_win_size: 1024
+  spec_hop_size: 512
+  spec_fft_size: 1024
+  rnn_hidden_size: 512
+  
+training:
+  batch_size: 16
+  num_epochs: 200
+  num_steps: 1000
+  lr: 0.0001
+  patience: 2
+  reduce_factor: 0.95
+  instruments: ['drums', 'bass', 'other', 'vocals']
+  target_instrument: null
+  device: "cuda"
+  optimizer: "adam"
+  q: 0.95
+  coarse_loss_clip: true
+  use_amp: true
+  grad_clip: 0
+
+augmentations:
+  enable: true # enable or disable all augmentations (to fast disable if needed)
+  loudness: true # randomly change loudness of each stem on the range (loudness_min; loudness_max)
+  loudness_min: 0.5
+  loudness_max: 1.5
+  mixup: true # mix several stems of same type with some probability (only works for dataset types: 1, 2, 3)
+  mixup_probs:
+    !!python/tuple # 2 additional stems of the same type (1st with prob 0.2, 2nd with prob 0.02)
+    - 0.2
+    - 0.02
+  mixup_loudness_min: 0.5
+  mixup_loudness_max: 1.5
+  all:
+    channel_shuffle: 0.5 # Set 0 or lower to disable
+    random_inverse: 0.1 # inverse track (better lower probability)
+    random_polarity: 0.5 # polarity change (multiply waveform to -1)
+    
+    
+inference:
+  batch_size: 4

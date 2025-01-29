@@ -78,3 +78,6 @@ wandb/
 pretrained/
 input/
 separation_results/
+
+inference_*.sh
+train_*.sh

@@ -3,6 +3,7 @@ audio:
   num_channels: 2
   hop_length: 512
   n_fft: 1024
+  # the size of the chunk to be loaded from the audio file
   chunk_size: 131584
   min_mean_abs: 0.0
 
@@ -20,7 +21,7 @@ training:
   batch_size: 16
   num_epochs: 200
   num_steps: 1000
-  lr: 0.0001
+  lr: 0.001
   patience: 2
   reduce_factor: 0.95
   instruments: ['drums', 'bass', 'other', 'vocals']
@@ -31,6 +32,7 @@ training:
   coarse_loss_clip: true
   use_amp: true
   grad_clip: 0
+  other_fix: false # it's needed for checking on multisong dataset if other is actually instrumental
 
 augmentations:
   enable: true # enable or disable all augmentations (to fast disable if needed)
@@ -52,3 +54,5 @@ augmentations:
     
 inference:
   batch_size: 4
+  num_overlap: 4
+  normalize: false

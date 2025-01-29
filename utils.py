@@ -291,51 +291,38 @@ def _getWindowingArray(window_size: int, fade_size: int) -> torch.Tensor:
 
 
 def demix(
-        config: ConfigDict,
-        model: torch.nn.Module,
-        mix: torch.Tensor,
-        device: torch.device,
-        model_type: str,
-        pbar: bool = False
+    config,
+    model: torch.nn.Module,
+    mix: torch.Tensor,
+    device: torch.device,
+    model_type: str,
+    pbar: bool = False
 ) -> Tuple[List[Dict[str, np.ndarray]], np.ndarray]:
     """
     Unified function for audio source separation with support for multiple processing modes.
-
-    This function separates audio into its constituent sources using either a generic custom logic
-    or a Demucs-specific logic. It supports batch processing and overlapping window-based chunking
-    for efficient and artifact-free separation.
-
-    Parameters:
-    ----------
-    config : ConfigDict
-        Configuration object containing audio and inference settings.
-    model : torch.nn.Module
-        The trained model used for audio source separation.
-    mix : torch.Tensor
-        Input audio tensor with shape (channels, time).
-    device : torch.device
-        The computation device (CPU or CUDA).
-    model_type : str, optional
-        Processing mode:
-            - "demucs" for logic specific to the Demucs model.
-        Default is "generic".
-    pbar : bool, optional
-        If True, displays a progress bar during chunk processing. Default is False.
-
-    Returns:
-    -------
-    Union[Dict[str, np.ndarray], np.ndarray]
-        - A dictionary mapping target instruments to separated audio sources if multiple instruments are present.
-        - A numpy array of the separated source if only one instrument is present.
+    This function separates audio into its constituent sources using either a generic custom
+    logic or a Demucs-specific logic. It supports batch processing and overlapping window-based
+    chunking for efficient and artifact-free separation.
+    config: Configuration object containing audio and inference settings.
+    model: The trained model used for audio source separation.
+    mix: Input audio tensor with shape (channels, time).
+    device: The computation device (CPU or CUDA).
+    model_type: Processing mode, e.g. 'demucs' for logic specific to the Demucs model.
+    pbar: If True, displays a progress bar during chunk processing.
+    Returns a dictionary mapping target instruments to separated audio sources,
+    or a numpy array if only one instrument is present and demucs mode is used.
     """
 
+    # Ensure mix is float32 for consistency
     mix = torch.tensor(mix, dtype=torch.float32)
 
+    # Decide which mode to use based on model_type
     if model_type == 'htdemucs':
         mode = 'demucs'
     else:
         mode = 'generic'
-    # Define processing parameters based on the mode
+
+    # Set parameters depending on the chosen mode
     if mode == 'demucs':
         chunk_size = config.training.samplerate * config.training.segment
         num_instruments = len(config.training.instruments)
@@ -343,62 +330,77 @@ def demix(
         step = chunk_size // num_overlap
     else:
         chunk_size = config.audio.chunk_size
+        # A helper function that picks which instruments to separate out
         num_instruments = len(prefer_target_instrument(config))
         num_overlap = config.inference.num_overlap
-
-        fade_size = chunk_size // 10
+        fade_size = chunk_size // 10  # Fade region is 10% of chunk size
         step = chunk_size // num_overlap
-        border = chunk_size - step
+        border = chunk_size - step  # Overlapped region
         length_init = mix.shape[-1]
-        windowing_array = _getWindowingArray(chunk_size, fade_size)
-        # Add padding for generic mode to handle edge artifacts
+        windowing_array = _getWindowingArray(chunk_size, fade_size)  # Smoothing window
+
+        # Add reflection padding if mix is large and there's a valid border
         if length_init > 2 * border and border > 0:
+            print("Border size: ", border)
+            print("Adding padding to handle edge artifacts")
+            orig_mix_shape = mix.shape
             mix = nn.functional.pad(mix, (border, border), mode="reflect")
+            shape_after_padding = mix.shape
+            print(f"Original mix shape: {orig_mix_shape}, Shape after padding: {shape_after_padding}")
 
     batch_size = config.inference.batch_size
+    use_amp = getattr(config.training, 'use_amp', True)  # Automatic mixed precision
 
-    use_amp = getattr(config.training, 'use_amp', True)
-
+    # Use AMP (autocast) and inference mode for efficiency
     with torch.cuda.amp.autocast(enabled=use_amp):
         with torch.inference_mode():
-            # Initialize result and counter tensors
+            # Prepare tensors to accumulate results and count overlaps
             req_shape = (num_instruments,) + mix.shape
+            print("req_shape: ", req_shape)
             result = torch.zeros(req_shape, dtype=torch.float32)
             counter = torch.zeros(req_shape, dtype=torch.float32)
 
             i = 0
             batch_data = []
             batch_locations = []
-            progress_bar = tqdm(
-                total=mix.shape[1], desc="Processing audio chunks", leave=False
-            ) if pbar else None
+            # Number of chunks to process based on step size
+            total_chunks = (mix.shape[1] - chunk_size) // step + 1
+
+            # Optional progress bar
+            progress_bar = tqdm(total=mix.shape[1], desc="Processing audio chunks", leave=False) if pbar else None
 
             while i < mix.shape[1]:
-                # Extract chunk and apply padding if necessary
+                # Extract current chunk from the mixture
                 part = mix[:, i:i + chunk_size].to(device)
                 chunk_len = part.shape[-1]
+
+                # Decide how to pad the chunk (reflect if large enough, otherwise zero-fill)
                 if mode == "generic" and chunk_len > chunk_size // 2:
                     pad_mode = "reflect"
                 else:
                     pad_mode = "constant"
                 part = nn.functional.pad(part, (0, chunk_size - chunk_len), mode=pad_mode, value=0)
 
+                # Add to batch
                 batch_data.append(part)
                 batch_locations.append((i, chunk_len))
                 i += step
 
-                # Process batch if it's full or the end is reached
+                # Process the batch if it's full or if there are no more chunks
                 if len(batch_data) >= batch_size or i >= mix.shape[1]:
+                    # Stack the chunk batch into one tensor and pass it through the model
                     arr = torch.stack(batch_data, dim=0)
                     x = model(arr)
 
+                    # Generic mode uses a window to smoothly blend chunk boundaries
                     if mode == "generic":
-                        window = windowing_array.clone() # using clone() fixes the clicks at chunk edges when using batch_size=1
-                        if i - step == 0:  # First audio chunk, no fadein
-                            window[:fade_size] = 1
-                        elif i >= mix.shape[1]:  # Last audio chunk, no fadeout
-                            window[-fade_size:] = 1
+                        window = windowing_array.clone()
+                        if i - step == 0: 
+                            window[:fade_size] = 1  # No fade-in on the first chunk
+                        elif i >= mix.shape[1]: 
+                            window[-fade_size:] = 1  # No fade-out on the last chunk
 
+                    # Distribute the model output back into the result and increment the counter
                     for j, (start, seg_len) in enumerate(batch_locations):
                         if mode == "generic":
                             result[..., start:start + seg_len] += x[j, ..., :seg_len].cpu() * window[..., :seg_len]
@@ -407,6 +409,7 @@ def demix(
                             result[..., start:start + seg_len] += x[j, ..., :seg_len].cpu()
                             counter[..., start:start + seg_len] += 1.0
 
+                    # Clear the batch placeholders
                     batch_data.clear()
                     batch_locations.clear()
 
@@ -416,29 +419,30 @@ def demix(
             if progress_bar:
                 progress_bar.close()
 
-            # Compute final estimated sources
+            # Divide the accumulated result by the overlap counter
             estimated_sources = result / counter
             estimated_sources = estimated_sources.cpu().numpy()
             np.nan_to_num(estimated_sources, copy=False, nan=0.0)
 
-            # Remove padding for generic mode
+            # Remove border padding in generic mode if it was added
             if mode == "generic":
                 if length_init > 2 * border and border > 0:
                     estimated_sources = estimated_sources[..., border:-border]
 
-    # Return the result as a dictionary or a single array
+    # In demucs mode, instruments come from config.training. Otherwise, use a helper function
     if mode == "demucs":
         instruments = config.training.instruments
     else:
         instruments = prefer_target_instrument(config)
 
+    # Create a dictionary mapping each instrument to its separated source
     ret_data = {k: v for k, v in zip(instruments, estimated_sources)}
 
+    # If there's only one instrument in demucs mode, just return the array
     if mode == "demucs" and num_instruments <= 1:
         return estimated_sources
     else:
         return ret_data
-
 
 def prefer_target_instrument(config: ConfigDict) -> List[str]:
     """

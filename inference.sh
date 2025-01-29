@@ -19,11 +19,23 @@ usage() {
 # Parse named arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --model_name) model_name="$2"; shift ;;
-    --config_path) config_path="$2"; shift ;;
-    --checkpoint_path) checkpoint_path="$2"; shift ;;
-    -h|--help) usage ;;
-    *) echo "Unknown parameter passed: $1"; usage ;;
+  --model_name)
+    model_name="$2"
+    shift
+    ;;
+  --config_path)
+    config_path="$2"
+    shift
+    ;;
+  --checkpoint_path)
+    checkpoint_path="$2"
+    shift
+    ;;
+  -h | --help) usage ;;
+  *)
+    echo "Unknown parameter passed: $1"
+    usage
+    ;;
   esac
   shift
 done
@@ -35,10 +47,10 @@ if [[ -z "$model_name" || -z "$config_path" || -z "$checkpoint_path" ]]; then
 fi
 
 # Execute the Python script
-kernprof -l -v inference.py \
---model_type "$model_name" \
---config_path "$config_path" \
---start_check_point "$checkpoint_path" \
---input_folder input/ \
---store_dir "separation_results/$model_name/" \
---force_cpu
+python inference.py \
+  --model_type "$model_name" \
+  --config_path "$config_path" \
+  --start_check_point "$checkpoint_path" \
+  --input_folder input/ \
+  --store_dir "separation_results/$model_name/" \
+  --force_cpu

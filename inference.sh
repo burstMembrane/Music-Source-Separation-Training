@@ -52,5 +52,7 @@ python inference.py \
   --config_path "$config_path" \
   --start_check_point "$checkpoint_path" \
   --input_folder input/ \
+  --draw_spectro 30 \
+  --use_tta \
   --store_dir "separation_results/$model_name/" \
   --force_cpu

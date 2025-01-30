@@ -21,7 +21,8 @@ training:
   batch_size: 16
   num_epochs: 200
   num_steps: 1000
-  lr: 0.001
+  # start high and then ramp down
+  lr: 1.0e-5
   patience: 2
   reduce_factor: 0.95
   instruments: ['drums', 'bass', 'other', 'vocals']

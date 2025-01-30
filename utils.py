@@ -1,5 +1,5 @@
 # coding: utf-8
-__author__ = 'Roman Solovyev (ZFTurbo): https://github.com/ZFTurbo/'
+__author__ = "Roman Solovyev (ZFTurbo): https://github.com/ZFTurbo/"
 
 import argparse
 import numpy as np
@@ -40,8 +40,8 @@ def load_config(model_type: str, config_path: str) -> Union[ConfigDict, OmegaCon
         If there is an error loading the configuration file.
     """
     try:
-        with open(config_path, 'r') as f:
-            if model_type == 'htdemucs':
+        with open(config_path, "r") as f:
+            if model_type == "htdemucs":
                 config = OmegaConf.load(config_path)
             else:
                 config = ConfigDict(yaml.load(f, Loader=yaml.FullLoader))
@@ -79,52 +79,71 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple:
 
     config = load_config(model_type, config_path)
 
-    if model_type == 'mdx23c':
+    if model_type == "mdx23c":
         from models.mdx23c_tfc_tdf_v3 import TFC_TDF_net
+
         model = TFC_TDF_net(config)
-    elif model_type == 'htdemucs':
+    elif model_type == "htdemucs":
         from models.demucs4ht import get_model
+
         model = get_model(config)
-    elif model_type == 'segm_models':
+    elif model_type == "segm_models":
         from models.segm_models import Segm_Models_Net
+
         model = Segm_Models_Net(config)
-    elif model_type == 'torchseg':
+    elif model_type == "torchseg":
         from models.torchseg_models import Torchseg_Net
+
         model = Torchseg_Net(config)
-    elif model_type == 'mel_band_roformer':
+    elif model_type == "mel_band_roformer":
         from models.bs_roformer import MelBandRoformer
+
         model = MelBandRoformer(**dict(config.model))
-    elif model_type == 'bs_roformer':
+    elif model_type == "bs_roformer":
         from models.bs_roformer import BSRoformer
+
         model = BSRoformer(**dict(config.model))
-    elif model_type == 'swin_upernet':
+    elif model_type == "swin_upernet":
         from models.upernet_swin_transformers import Swin_UperNet_Model
+
         model = Swin_UperNet_Model(config)
-    elif model_type == 'bandit':
+    elif model_type == "bandit":
         from models.bandit.core.model import MultiMaskMultiSourceBandSplitRNNSimple
+
         model = MultiMaskMultiSourceBandSplitRNNSimple(**config.model)
-    elif model_type == 'bandit_v2':
+    elif model_type == "bandit_v2":
         from models.bandit_v2.bandit import Bandit
+
         model = Bandit(**config.kwargs)
-    elif model_type == 'scnet_unofficial':
+    elif model_type == "scnet_unofficial":
         from models.scnet_unofficial import SCNet
+
         model = SCNet(**config.model)
-    elif model_type == 'scnet':
+    elif model_type == "scnet":
         from models.scnet import SCNet
+
         model = SCNet(**config.model)
-    elif model_type == 'apollo':
+    elif model_type == "apollo":
         from models.look2hear.models import BaseModel
+
         model = BaseModel.apollo(**config.model)
-    elif model_type == 'bs_mamba2':
+    elif model_type == "bs_mamba2":
         from models.ts_bs_mamba2 import Separator
+
         model = Separator(**config.model)
+    elif model_type == "hstasnet":
+        from models.hstasnet import HSTasNet
+
+        model = HSTasNet(**config.model)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
     return model, config
 
 
-def read_audio_transposed(path: str, instr: str = None, skip_err: bool = False) -> Tuple[np.ndarray, int]:
+def read_audio_transposed(
+    path: str, instr: str = None, skip_err: bool = False
+) -> Tuple[np.ndarray, int]:
     """
     Reads an audio file, ensuring mono audio is converted to two-dimensional format,
     and transposes the data to have channels as the first dimension.
@@ -202,12 +221,12 @@ def denormalize_audio(audio: np.ndarray, norm_params: Dict[str, float]) -> np.nd
 
 
 def apply_tta(
-        config,
-        model: torch.nn.Module,
-        mix: torch.Tensor,
-        waveforms_orig: Dict[str, torch.Tensor],
-        device: torch.device,
-        model_type: str
+    config,
+    model: torch.nn.Module,
+    mix: torch.Tensor,
+    waveforms_orig: Dict[str, torch.Tensor],
+    device: torch.device,
+    model_type: str,
 ) -> Dict[str, torch.Tensor]:
     """
     Apply Test-Time Augmentation (TTA) for source separation.
@@ -291,122 +310,139 @@ def _getWindowingArray(window_size: int, fade_size: int) -> torch.Tensor:
 
 
 def demix(
-        config: ConfigDict,
-        model: torch.nn.Module,
-        mix: torch.Tensor,
-        device: torch.device,
-        model_type: str,
-        pbar: bool = False
+    config,
+    model: torch.nn.Module,
+    mix: torch.Tensor,
+    device: torch.device,
+    model_type: str,
+    pbar: bool = False,
 ) -> Tuple[List[Dict[str, np.ndarray]], np.ndarray]:
     """
     Unified function for audio source separation with support for multiple processing modes.
-
-    This function separates audio into its constituent sources using either a generic custom logic
-    or a Demucs-specific logic. It supports batch processing and overlapping window-based chunking
-    for efficient and artifact-free separation.
-
-    Parameters:
-    ----------
-    config : ConfigDict
-        Configuration object containing audio and inference settings.
-    model : torch.nn.Module
-        The trained model used for audio source separation.
-    mix : torch.Tensor
-        Input audio tensor with shape (channels, time).
-    device : torch.device
-        The computation device (CPU or CUDA).
-    model_type : str, optional
-        Processing mode:
-            - "demucs" for logic specific to the Demucs model.
-        Default is "generic".
-    pbar : bool, optional
-        If True, displays a progress bar during chunk processing. Default is False.
-
-    Returns:
-    -------
-    Union[Dict[str, np.ndarray], np.ndarray]
-        - A dictionary mapping target instruments to separated audio sources if multiple instruments are present.
-        - A numpy array of the separated source if only one instrument is present.
+    This function separates audio into its constituent sources using either a generic custom
+    logic or a Demucs-specific logic. It supports batch processing and overlapping window-based
+    chunking for efficient and artifact-free separation.
+    config: Configuration object containing audio and inference settings.
+    model: The trained model used for audio source separation.
+    mix: Input audio tensor with shape (channels, time).
+    device: The computation device (CPU or CUDA).
+    model_type: Processing mode, e.g. 'demucs' for logic specific to the Demucs model.
+    pbar: If True, displays a progress bar during chunk processing.
+    Returns a dictionary mapping target instruments to separated audio sources,
+    or a numpy array if only one instrument is present and demucs mode is used.
     """
 
+    # Ensure mix is float32 for consistency
     mix = torch.tensor(mix, dtype=torch.float32)
 
-    if model_type == 'htdemucs':
-        mode = 'demucs'
+    # Decide which mode to use based on model_type
+    if model_type == "htdemucs":
+        mode = "demucs"
     else:
-        mode = 'generic'
-    # Define processing parameters based on the mode
-    if mode == 'demucs':
+        mode = "generic"
+
+    # Set parameters depending on the chosen mode
+    if mode == "demucs":
         chunk_size = config.training.samplerate * config.training.segment
         num_instruments = len(config.training.instruments)
         num_overlap = config.inference.num_overlap
         step = chunk_size // num_overlap
     else:
         chunk_size = config.audio.chunk_size
+        # A helper function that picks which instruments to separate out
         num_instruments = len(prefer_target_instrument(config))
         num_overlap = config.inference.num_overlap
-
-        fade_size = chunk_size // 10
+        fade_size = chunk_size // 10  # Fade region is 10% of chunk size
         step = chunk_size // num_overlap
-        border = chunk_size - step
+        border = chunk_size - step  # Overlapped region
         length_init = mix.shape[-1]
-        windowing_array = _getWindowingArray(chunk_size, fade_size)
-        # Add padding for generic mode to handle edge artifacts
+        windowing_array = _getWindowingArray(chunk_size, fade_size)  # Smoothing window
+
+        # Add reflection padding if mix is large and there's a valid border
         if length_init > 2 * border and border > 0:
+            print("Border size: ", border)
+            print("Adding padding to handle edge artifacts")
+            orig_mix_shape = mix.shape
             mix = nn.functional.pad(mix, (border, border), mode="reflect")
+            shape_after_padding = mix.shape
+            print(
+                f"Original mix shape: {orig_mix_shape}, Shape after padding: {shape_after_padding}"
+            )
 
     batch_size = config.inference.batch_size
+    use_amp = getattr(config.training, "use_amp", True)  # Automatic mixed precision
 
-    use_amp = getattr(config.training, 'use_amp', True)
-
+    # Use AMP (autocast) and inference mode for efficiency
     with torch.cuda.amp.autocast(enabled=use_amp):
         with torch.inference_mode():
-            # Initialize result and counter tensors
+            # Prepare tensors to accumulate results and count overlaps
             req_shape = (num_instruments,) + mix.shape
+            print("req_shape: ", req_shape)
             result = torch.zeros(req_shape, dtype=torch.float32)
             counter = torch.zeros(req_shape, dtype=torch.float32)
 
             i = 0
             batch_data = []
             batch_locations = []
-            progress_bar = tqdm(
-                total=mix.shape[1], desc="Processing audio chunks", leave=False
-            ) if pbar else None
+            # Number of chunks to process based on step size
+            total_chunks = (mix.shape[1] - chunk_size) // step + 1
+
+            # Optional progress bar
+            progress_bar = (
+                tqdm(total=mix.shape[1], desc="Processing audio chunks", leave=False)
+                if pbar
+                else None
+            )
 
             while i < mix.shape[1]:
-                # Extract chunk and apply padding if necessary
-                part = mix[:, i:i + chunk_size].to(device)
+                # Extract current chunk from the mixture
+                part = mix[:, i : i + chunk_size].to(device)
                 chunk_len = part.shape[-1]
+
+                # Decide how to pad the chunk (reflect if large enough, otherwise zero-fill)
                 if mode == "generic" and chunk_len > chunk_size // 2:
                     pad_mode = "reflect"
                 else:
                     pad_mode = "constant"
-                part = nn.functional.pad(part, (0, chunk_size - chunk_len), mode=pad_mode, value=0)
+                part = nn.functional.pad(
+                    part, (0, chunk_size - chunk_len), mode=pad_mode, value=0
+                )
 
+                # Add to batch
                 batch_data.append(part)
                 batch_locations.append((i, chunk_len))
                 i += step
 
-                # Process batch if it's full or the end is reached
+                # Process the batch if it's full or if there are no more chunks
                 if len(batch_data) >= batch_size or i >= mix.shape[1]:
+                    # Stack the chunk batch into one tensor and pass it through the model
                     arr = torch.stack(batch_data, dim=0)
                     x = model(arr)
 
+                    # Generic mode uses a window to smoothly blend chunk boundaries
                     if mode == "generic":
-                        window = windowing_array.clone() # using clone() fixes the clicks at chunk edges when using batch_size=1
-                        if i - step == 0:  # First audio chunk, no fadein
-                            window[:fade_size] = 1
-                        elif i >= mix.shape[1]:  # Last audio chunk, no fadeout
-                            window[-fade_size:] = 1
+                        window = windowing_array.clone()
+                        if i - step == 0:
+                            window[:fade_size] = 1  # No fade-in on the first chunk
+                        elif i >= mix.shape[1]:
+                            window[-fade_size:] = 1  # No fade-out on the last chunk
 
+                    # Distribute the model output back into the result and increment the counter
                     for j, (start, seg_len) in enumerate(batch_locations):
                         if mode == "generic":
-                            result[..., start:start + seg_len] += x[j, ..., :seg_len].cpu() * window[..., :seg_len]
-                            counter[..., start:start + seg_len] += window[..., :seg_len]
+                            result[..., start : start + seg_len] += (
+                                x[j, ..., :seg_len].cpu() * window[..., :seg_len]
+                            )
+                            counter[..., start : start + seg_len] += window[
+                                ..., :seg_len
+                            ]
                         else:
-                            result[..., start:start + seg_len] += x[j, ..., :seg_len].cpu()
-                            counter[..., start:start + seg_len] += 1.0
+                            result[..., start : start + seg_len] += x[
+                                j, ..., :seg_len
+                            ].cpu()
+                            counter[..., start : start + seg_len] += 1.0
 
+                    # Clear the batch placeholders
                     batch_data.clear()
                     batch_locations.clear()
 
@@ -416,24 +452,26 @@ def demix(
             if progress_bar:
                 progress_bar.close()
 
-            # Compute final estimated sources
+            # Divide the accumulated result by the overlap counter
             estimated_sources = result / counter
             estimated_sources = estimated_sources.cpu().numpy()
             np.nan_to_num(estimated_sources, copy=False, nan=0.0)
 
-            # Remove padding for generic mode
+            # Remove border padding in generic mode if it was added
             if mode == "generic":
                 if length_init > 2 * border and border > 0:
                     estimated_sources = estimated_sources[..., border:-border]
 
-    # Return the result as a dictionary or a single array
+    # In demucs mode, instruments come from config.training. Otherwise, use a helper function
     if mode == "demucs":
         instruments = config.training.instruments
     else:
         instruments = prefer_target_instrument(config)
 
+    # Create a dictionary mapping each instrument to its separated source
     ret_data = {k: v for k, v in zip(instruments, estimated_sources)}
 
+    # If there's only one instrument in demucs mode, just return the array
     if mode == "demucs" and num_instruments <= 1:
         return estimated_sources
     else:
@@ -442,27 +480,29 @@ def demix(
 
 def prefer_target_instrument(config: ConfigDict) -> List[str]:
     """
-        Return the list of target instruments based on the configuration.
-        If a specific target instrument is specified in the configuration,
-        it returns a list with that instrument. Otherwise, it returns the list of instruments.
+    Return the list of target instruments based on the configuration.
+    If a specific target instrument is specified in the configuration,
+    it returns a list with that instrument. Otherwise, it returns the list of instruments.
 
-        Parameters:
-        ----------
-        config : ConfigDict
-            Configuration object containing the list of instruments or the target instrument.
+    Parameters:
+    ----------
+    config : ConfigDict
+        Configuration object containing the list of instruments or the target instrument.
 
-        Returns:
-        -------
-        List[str]
-            A list of target instruments.
-        """
-    if getattr(config.training, 'target_instrument', None):
+    Returns:
+    -------
+    List[str]
+        A list of target instruments.
+    """
+    if getattr(config.training, "target_instrument", None):
         return [config.training.target_instrument]
     else:
         return config.training.instruments
 
 
-def load_not_compatible_weights(model: torch.nn.Module, weights: str, verbose: bool = False) -> None:
+def load_not_compatible_weights(
+    model: torch.nn.Module, weights: str, verbose: bool = False
+) -> None:
     """
     Load weights into a model, handling mismatched shapes and dimensions.
 
@@ -474,34 +514,40 @@ def load_not_compatible_weights(model: torch.nn.Module, weights: str, verbose: b
 
     new_model = model.state_dict()
     old_model = torch.load(weights)
-    if 'state' in old_model:
+    if "state" in old_model:
         # Fix for htdemucs weights loading
-        old_model = old_model['state']
-    if 'state_dict' in old_model:
+        old_model = old_model["state"]
+    if "state_dict" in old_model:
         # Fix for apollo weights loading
-        old_model = old_model['state_dict']
+        old_model = old_model["state_dict"]
 
     for el in new_model:
         if el in old_model:
             if verbose:
-                print(f'Match found for {el}!')
+                print(f"Match found for {el}!")
             if new_model[el].shape == old_model[el].shape:
                 if verbose:
-                    print('Action: Just copy weights!')
+                    print("Action: Just copy weights!")
                 new_model[el] = old_model[el]
             else:
                 if len(new_model[el].shape) != len(old_model[el].shape):
                     if verbose:
-                        print('Action: Different dimension! Too lazy to write the code... Skip it')
+                        print(
+                            "Action: Different dimension! Too lazy to write the code... Skip it"
+                        )
                 else:
                     if verbose:
-                        print(f'Shape is different: {tuple(new_model[el].shape)} != {tuple(old_model[el].shape)}')
+                        print(
+                            f"Shape is different: {tuple(new_model[el].shape)} != {tuple(old_model[el].shape)}"
+                        )
                     ln = len(new_model[el].shape)
                     max_shape = []
                     slices_old = []
                     slices_new = []
                     for i in range(ln):
-                        max_shape.append(max(new_model[el].shape[i], old_model[el].shape[i]))
+                        max_shape.append(
+                            max(new_model[el].shape[i], old_model[el].shape[i])
+                        )
                         slices_old.append(slice(0, old_model[el].shape[i]))
                         slices_new.append(slice(0, new_model[el].shape[i]))
                     # print(max_shape)
@@ -515,13 +561,13 @@ def load_not_compatible_weights(model: torch.nn.Module, weights: str, verbose: b
                     new_model[el] = max_matrix[slices_new]
         else:
             if verbose:
-                print(f'Match not found for {el}!')
-    model.load_state_dict(
-        new_model
-    )
+                print(f"Match not found for {el}!")
+    model.load_state_dict(new_model)
 
 
-def load_lora_weights(model: torch.nn.Module, lora_path: str, device: str = 'cpu') -> None:
+def load_lora_weights(
+    model: torch.nn.Module, lora_path: str, device: str = "cpu"
+) -> None:
     """
     Load LoRA weights into a model.
     This function updates the given model with LoRA-specific weights from the specified checkpoint file.
@@ -545,7 +591,9 @@ def load_lora_weights(model: torch.nn.Module, lora_path: str, device: str = 'cpu
     model.load_state_dict(lora_state_dict, strict=False)
 
 
-def load_start_checkpoint(args: argparse.Namespace, model: torch.nn.Module, type_='train') -> None:
+def load_start_checkpoint(
+    args: argparse.Namespace, model: torch.nn.Module, type_="train"
+) -> None:
     """
     Load the starting checkpoint for a model.
 
@@ -555,24 +603,28 @@ def load_start_checkpoint(args: argparse.Namespace, model: torch.nn.Module, type
         type_: how to load weights - for train we can load not fully compatible weights
     """
 
-    print(f'Start from checkpoint: {args.start_check_point}')
-    if type_ in ['train']:
+    print(f"Start from checkpoint: {args.start_check_point}")
+    if type_ in ["train"]:
         if 1:
             load_not_compatible_weights(model, args.start_check_point, verbose=False)
         else:
             model.load_state_dict(torch.load(args.start_check_point))
     else:
-        device='cpu'
-        if args.model_type in ['htdemucs', 'apollo']:
-            state_dict = torch.load(args.start_check_point, map_location=device, weights_only=False)
+        device = "cpu"
+        if args.model_type in ["htdemucs", "apollo"]:
+            state_dict = torch.load(
+                args.start_check_point, map_location=device, weights_only=False
+            )
             # Fix for htdemucs pretrained models
-            if 'state' in state_dict:
-                state_dict = state_dict['state']
+            if "state" in state_dict:
+                state_dict = state_dict["state"]
             # Fix for apollo pretrained models
-            if 'state_dict' in state_dict:
-                state_dict = state_dict['state_dict']
+            if "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
         else:
-            state_dict = torch.load(args.start_check_point, map_location=device, weights_only=True)
+            state_dict = torch.load(
+                args.start_check_point, map_location=device, weights_only=True
+            )
         model.load_state_dict(state_dict)
 
     if args.lora_checkpoint:
@@ -597,13 +649,15 @@ def bind_lora_to_model(config: Dict[str, Any], model: nn.Module) -> nn.Module:
         The modified model with the replaced layers.
     """
 
-    if 'lora' not in config:
-        raise ValueError("Configuration must contain the 'lora' key with parameters for LoRA.")
+    if "lora" not in config:
+        raise ValueError(
+            "Configuration must contain the 'lora' key with parameters for LoRA."
+        )
 
     replaced_layers = 0  # Counter for replaced layers
 
     for name, module in model.named_modules():
-        hierarchy = name.split('.')
+        hierarchy = name.split(".")
         layer_name = hierarchy[-1]
 
         # Check if this is the target layer to replace (and layer_name == 'to_qkv')
@@ -622,8 +676,8 @@ def bind_lora_to_model(config: Dict[str, Any], model: nn.Module) -> nn.Module:
                         in_features=module.in_features,
                         out_features=module.out_features,
                         bias=module.bias is not None,
-                        **config['lora']
-                    )
+                        **config["lora"],
+                    ),
                 )
                 replaced_layers += 1  # Increment the counter
 
@@ -631,7 +685,9 @@ def bind_lora_to_model(config: Dict[str, Any], model: nn.Module) -> nn.Module:
                 print(f"Error replacing layer {name}: {e}")
 
     if replaced_layers == 0:
-        print("Warning: No layers were replaced. Check the model structure and configuration.")
+        print(
+            "Warning: No layers were replaced. Check the model structure and configuration."
+        )
     else:
         print(f"Number of layers replaced with LoRA: {replaced_layers}")
 
@@ -642,20 +698,19 @@ def draw_spectrogram(waveform, sample_rate, length, output_file):
     import librosa.display
 
     # Cut only required part of spectorgram
-    x = waveform[:int(length * sample_rate), :]
-    X = librosa.stft(x.mean(axis=-1))  # perform short-term fourier transform on mono signal
-    Xdb = librosa.amplitude_to_db(np.abs(X), ref=np.max)  # convert an amplitude spectrogram to dB-scaled spectrogram.
+    x = waveform[: int(length * sample_rate), :]
+    X = librosa.stft(
+        x.mean(axis=-1)
+    )  # perform short-term fourier transform on mono signal
+    Xdb = librosa.amplitude_to_db(
+        np.abs(X), ref=np.max
+    )  # convert an amplitude spectrogram to dB-scaled spectrogram.
     fig, ax = plt.subplots()
     # plt.figure(figsize=(30, 10))  # initialize the fig size
     img = librosa.display.specshow(
-        Xdb,
-        cmap='plasma',
-        sr=sample_rate,
-        x_axis='time',
-        y_axis='linear',
-        ax=ax
+        Xdb, cmap="plasma", sr=sample_rate, x_axis="time", y_axis="linear", ax=ax
     )
-    ax.set(title='File: ' + os.path.basename(output_file))
+    ax.set(title="File: " + os.path.basename(output_file))
     fig.colorbar(img, ax=ax, format="%+2.f dB")
     if output_file is not None:
         plt.savefig(output_file)

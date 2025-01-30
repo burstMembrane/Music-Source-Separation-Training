@@ -71,7 +71,7 @@ def run_folder(model, args, config, device, verbose: bool = False):
             print(f'Cannot read track: {format(path)}')
             print(f'Error message: {str(e)}')
             continue
-
+        print("Mix len shape: ", len(mix.shape))
         # If mono audio we must adjust it depending on model
         if len(mix.shape) == 1:
             mix = np.expand_dims(mix, axis=0)
@@ -79,12 +79,13 @@ def run_folder(model, args, config, device, verbose: bool = False):
                 if config.audio['num_channels'] == 2:
                     print(f'Convert mono track to stereo...')
                     mix = np.concatenate([mix, mix], axis=0)
-
+        print("Loaded mix shape: ", mix.shape)
         mix_orig = mix.copy()
         if 'normalize' in config.inference:
             if config.inference['normalize'] is True:
                 mix, norm_params = normalize_audio(mix)
-
+        # print after normalization
+        print("Normalized mix shape: ", mix.shape)
         waveforms_orig = demix(config, model, mix, device, model_type=args.model_type, pbar=detailed_pbar)
 
         if args.use_tta:

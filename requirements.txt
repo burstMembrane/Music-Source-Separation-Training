@@ -25,7 +25,7 @@ asteroid==0.7.0
 auraloss
 torchseg
 bitsandbytes
-wandb
+# wandb
 accelerate
 huggingface-hub>=0.23.0
 prodigyopt

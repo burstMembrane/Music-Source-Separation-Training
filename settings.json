@@ -1,0 +1,17 @@
+{
+  "model_type": "",
+  "config_path": "",
+  "start_checkpoint": "",
+  "results_path": "",
+  "data_paths": "",
+  "valid_paths": "",
+  "num_workers": "4",
+  "device_ids": "0",
+  "infer_model_type": "scnet",
+  "infer_config_path": "/home/liam/Music-Source-Separation-Training/pretrained/config_musdb18_scnet.yaml",
+  "infer_start_checkpoint": "/home/liam/Music-Source-Separation-Training/pretrained/scnet_checkpoint_musdb18.ckpt",
+  "infer_input_folder": "/home/liam/Music-Source-Separation-Training/input",
+  "infer_store_dir": "/home/liam/Music-Source-Separation-Training/separation_results",
+  "extract_instrumental": false,
+  "saved_combinations": {}
+}

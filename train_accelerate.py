@@ -23,8 +23,10 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 
 from dataset import MSSDataset
-from utils import get_model_from_config, demix, sdr, prefer_target_instrument
-from train import masked_loss, manual_seed, load_not_compatible_weights
+from utils import get_model_from_config, demix
+from metrics import sdr
+from utils import load_not_compatible_weights
+from train import masked_loss, manual_seed
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -270,6 +272,12 @@ def train_model(args):
                 loss = model(x, y)
             else:
                 y_ = model(x)
+                # ensure y and ) have the same shape at dimentsion 3
+                if y_.shape[3] > y.shape[3]:
+                    y_ = y_[:, :, :, :y.shape[3]]
+                elif y_.shape[3] < y.shape[3]:
+                    y = y[:, :, :, :y_.shape[3]]
+
                 if args.use_multistft_loss:
                     y1_ = torch.reshape(y_, (y_.shape[0], y_.shape[1] * y_.shape[2], y_.shape[3]))
                     y1 = torch.reshape(y, (y.shape[0], y.shape[1] * y.shape[2], y.shape[3]))

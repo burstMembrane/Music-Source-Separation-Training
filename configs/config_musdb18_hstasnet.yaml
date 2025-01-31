@@ -4,7 +4,8 @@ audio:
   hop_length: 512
   n_fft: 1024
   # the size of the chunk to be loaded from the audio file
-  chunk_size: 131584
+  chunk_size: 485100 # 44100 * 11
+
   min_mean_abs: 0.0
 
 model:
@@ -18,7 +19,7 @@ model:
   rnn_hidden_size: 512
   
 training:
-  batch_size: 16
+  batch_size: 32
   num_epochs: 200
   num_steps: 1000
   # start high and then ramp down

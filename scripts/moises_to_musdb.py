@@ -1,12 +1,13 @@
+import argparse
 import os
-import soundfile as sf
-import numpy as np
-from tqdm import tqdm
 import shutil
 import time
 from multiprocessing import Pool
-from typing import List, Tuple, Dict, Optional, Union
-import argparse
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import soundfile as sf
+from tqdm import tqdm
 
 
 def combine_audio_files(files: List[str]) -> Tuple[np.ndarray, int]:
@@ -22,9 +23,13 @@ def combine_audio_files(files: List[str]) -> Tuple[np.ndarray, int]:
     for file in files[1:]:
         data, sr = sf.read(file)
         if len(data) > len(combined_data):
-            combined_data = np.pad(combined_data, ((0, len(data) - len(combined_data)), (0, 0)), 'constant')
+            combined_data = np.pad(
+                combined_data, ((0, len(data) - len(combined_data)), (0, 0)), "constant"
+            )
         elif len(combined_data) > len(data):
-            data = np.pad(data, ((0, len(combined_data) - len(data)), (0, 0)), 'constant')
+            data = np.pad(
+                data, ((0, len(combined_data) - len(data)), (0, 0)), "constant"
+            )
         combined_data += data
 
     return combined_data, sample_rate
@@ -41,7 +46,7 @@ def files_to_categories(src_folder: str, categories: List[str]) -> Dict[str, Lis
     Returns:
     - Dict[str, List[str]]: A Dict with keys as categories, values as lists of paths to .wav files found.
     """
-    files = {category: [] for category in categories + ['other']}
+    files = {category: [] for category in categories + ["other"]}
 
     for folder in os.listdir(src_folder):
         folder_path = os.path.join(src_folder, folder)
@@ -49,15 +54,17 @@ def files_to_categories(src_folder: str, categories: List[str]) -> Dict[str, Lis
             if folder.lower() in categories:
                 stem = folder.lower()
             else:
-                stem = 'other'
+                stem = "other"
             for f in os.listdir(folder_path):
-                if f.endswith('.wav'):
+                if f.endswith(".wav"):
                     files[stem].append(os.path.join(folder_path, f))
     return files
 
 
 # Processes a folder containing audio tracks, copying and combining necessary files into the target structure
-def process_folder(src_folder: str, dest_folder: str, stems: List[str]) -> None:
+def process_folder(
+    src_folder: str, dest_folder: str, stems: List[str], sample_rate: int = 44100
+) -> None:
     """
     Processes a folder containing audio tracks, copying and combining necessary files into the target structure.
     Parameters:
@@ -77,7 +84,9 @@ def process_folder(src_folder: str, dest_folder: str, stems: List[str]) -> None:
     all_files = files_to_categories(src_folder, categories)
 
     # Using tqdm to display progress for categories
-    for category in tqdm(categories, desc=f"Processing categories in {os.path.basename(src_folder)}"):
+    for category in tqdm(
+        categories, desc=f"Processing categories in {os.path.basename(src_folder)}"
+    ):
         files = all_files[category]
         if files:
             if len(files) > 1:
@@ -85,18 +94,21 @@ def process_folder(src_folder: str, dest_folder: str, stems: List[str]) -> None:
             else:
                 combined_data, sample_rate = sf.read(files[0])
 
-            sf.write(os.path.join(dest_folder, f"{category}.wav"), combined_data, sample_rate)
+            sf.write(
+                os.path.join(dest_folder, f"{category}.wav"), combined_data, sample_rate
+            )
             duration = max(duration, len(combined_data) / sample_rate)
         else:
             problem_categories.append(category)
 
-    other_files = all_files['other']
+    other_files = all_files["other"]
     if other_files:
         other_combined_data, sample_rate = combine_audio_files(other_files)
-        sf.write(os.path.join(dest_folder, "other.wav"), other_combined_data, sample_rate)
+        sf.write(
+            os.path.join(dest_folder, "other.wav"), other_combined_data, sample_rate
+        )
     else:
-        problem_categories.append('other')
-
+        problem_categories.append("other")
     for category in problem_categories:
         silence = np.zeros((int(duration * sample_rate), 2), dtype=np.float32)
         sf.write(os.path.join(dest_folder, f"{category}.wav"), silence, sample_rate)
@@ -107,18 +119,25 @@ def process_folder(src_folder: str, dest_folder: str, stems: List[str]) -> None:
 
 
 # Wrapper function for 'process_folder' that unpacks the arguments
-def process_folder_wrapper(args: Tuple[str, str, List[str]]) -> None:
+def process_folder_wrapper(args: Tuple[str, str, List[str], int]) -> None:
     """
     A wrapper function for 'process_folder' that unpacks the arguments.
     Parameters:
     - args (Tuple[str, str]): A Tuple containing the source folder and destination folder paths.
     """
-    src_folder, dest_folder, stems = args
-    return process_folder(src_folder, dest_folder, stems)
+    src_folder, dest_folder, stems, sample_rate = args
+    return process_folder(src_folder, dest_folder, stems, sample_rate)
 
 
 # Converts MoisesDB dataset to MUSDB18 format for a specified number of folders
-def convert_dataset(src_root: str, dest_root: str, stems: List[str], max_folders: int = 240, num_workers: int = 4) -> None:
+def convert_dataset(
+    src_root: str,
+    dest_root: str,
+    stems: List[str],
+    max_folders: int = 240,
+    num_workers: int = 4,
+    sample_rate: int = 44100,
+) -> None:
     """
     Converts MoisesDB dataset to MUSDB18 format for a specified number of folders.
     Parameters:
@@ -136,7 +155,7 @@ def convert_dataset(src_root: str, dest_root: str, stems: List[str], max_folders
         dest_folder = os.path.join(dest_root, folder)
 
         if os.path.isdir(src_folder):
-            folders_to_process.append((src_folder, dest_folder, stems))
+            folders_to_process.append((src_folder, dest_folder, stems, sample_rate))
         else:
             print(f"Skip {src_folder} — not dir")
 
@@ -159,17 +178,27 @@ def count_folders_in_folder(args_to_func) -> Dict[str, int]:
     folder_path, stems = args_to_func
     if os.path.isdir(folder_path):
         # Count subfolders in stems
-        folder_count = len([f for f in os.listdir(folder_path)
-                            if os.path.isdir(os.path.join(folder_path, f)) and f in stems])
+        folder_count = len(
+            [
+                f
+                for f in os.listdir(folder_path)
+                if os.path.isdir(os.path.join(folder_path, f)) and f in stems
+            ]
+        )
         # For other.wav
-        if any(os.path.isdir(os.path.join(folder_path, f)) and f not in stems for f in os.listdir(folder_path)):
+        if any(
+            os.path.isdir(os.path.join(folder_path, f)) and f not in stems
+            for f in os.listdir(folder_path)
+        ):
             folder_count += 1
 
     return {folder_path: folder_count}
 
 
 # Parallel count of subfolders in each folder inside src_folder
-def count_folders_parallel(src_folder: str, stems, num_workers: int = 4) -> Dict[str, int]:
+def count_folders_parallel(
+    src_folder: str, stems, num_workers: int = 4
+) -> Dict[str, int]:
     """
     Parallelly counts the number of subfolders in each folder inside src_folder.
 
@@ -180,8 +209,11 @@ def count_folders_parallel(src_folder: str, stems, num_workers: int = 4) -> Dict
     - Dict[str, int]: Dictionary with folder paths as keys and subfolder counts as values.
     """
     # Get list of all folders inside src_folder
-    folders_to_process = [os.path.join(src_folder, folder) for folder in os.listdir(src_folder) if
-                          os.path.isdir(os.path.join(src_folder, folder))]
+    folders_to_process = [
+        os.path.join(src_folder, folder)
+        for folder in os.listdir(src_folder)
+        if os.path.isdir(os.path.join(src_folder, folder))
+    ]
 
     args_to_func = [(folder, stems) for folder in folders_to_process]
 
@@ -207,18 +239,61 @@ def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
     Returns:
         Namespace object containing parsed arguments and their values.
     """
-    parser = argparse.ArgumentParser(description="Copy mixture files from VALID_DIR to INFERENCE_DIR")
-    parser.add_argument('--src_dir', type=str, required=True, help="Source directory with MoisesDB tracks")
-    parser.add_argument('--dest_dir', type=str, required=True, help="Directory to save tracks in MUSDB18")
-    parser.add_argument('--num_workers', type=int, default=os.cpu_count(), help="Num of processors")
-    parser.add_argument('--max_folders', type=int, default=240, help="Num of folders to use")
-    parser.add_argument('--create_valid',  action='store_true', help="Create valid folders or not")
-    parser.add_argument('--valid_dir', type=str, default=r'\valid', help="Directory for valid")
-    parser.add_argument('--valid_size', type=int, default=10, help="Num of folders to use in valitd")
-    parser.add_argument("--stems", nargs='+', type=str, default=['bass', 'drums', 'vocals'],
-                        choices=['drums', 'guitar', 'vocals', 'bass', 'other_keys', 'piano', 'percussion',
-                                 'bowed_strings', 'wind', 'other_plucked'], help='List of stems to use.')
-    parser.add_argument('--mixture_name', type=str, default='mixture.wav', help="Name of mixture tracks")
+    parser = argparse.ArgumentParser(
+        description="Copy mixture files from VALID_DIR to INFERENCE_DIR"
+    )
+    parser.add_argument(
+        "--src_dir",
+        type=str,
+        required=True,
+        help="Source directory with MoisesDB tracks",
+    )
+    parser.add_argument(
+        "--dest_dir",
+        type=str,
+        required=True,
+        help="Directory to save tracks in MUSDB18",
+    )
+    parser.add_argument(
+        "--sample_rate", type=int, default=44100, help="Sample rate of audio files"
+    )
+    parser.add_argument(
+        "--num_workers", type=int, default=os.cpu_count(), help="Num of processors"
+    )
+    parser.add_argument(
+        "--max_folders", type=int, default=240, help="Num of folders to use"
+    )
+    parser.add_argument(
+        "--create_valid", action="store_true", help="Create valid folders or not"
+    )
+    parser.add_argument(
+        "--valid_dir", type=str, default=r"\valid", help="Directory for valid"
+    )
+    parser.add_argument(
+        "--valid_size", type=int, default=10, help="Num of folders to use in valitd"
+    )
+    parser.add_argument(
+        "--stems",
+        nargs="+",
+        type=str,
+        default=["bass", "drums", "vocals"],
+        choices=[
+            "drums",
+            "guitar",
+            "vocals",
+            "bass",
+            "other_keys",
+            "piano",
+            "percussion",
+            "bowed_strings",
+            "wind",
+            "other_plucked",
+        ],
+        help="List of stems to use.",
+    )
+    parser.add_argument(
+        "--mixture_name", type=str, default="mixture.wav", help="Name of mixture tracks"
+    )
 
     if dict_args is not None:
         args = parser.parse_args([])
@@ -233,7 +308,6 @@ def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
 
 def main(args: Optional[argparse.Namespace] = None) -> None:
     start = time.time()
-
     args = parse_args(args)
 
     source_directory = args.src_dir
@@ -241,13 +315,21 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
     num_workers = args.num_workers
     stems = args.stems
     max_folders = args.max_folders
+    sample_rate = args.sample_rate
+    print(f"num_workers: {num_workers}, " f'categories: {stems + ["other"]}')
 
-    print(f'num_workers: {num_workers}, '
-          f'categories: {stems + ["other"]}')
+    convert_dataset(
+        source_directory,
+        destination_directory,
+        stems,
+        max_folders=max_folders,
+        num_workers=num_workers,
+        sample_rate=sample_rate,
+    )
 
-    convert_dataset(source_directory, destination_directory, stems, max_folders=max_folders, num_workers=num_workers)
-
-    print(f'All {max_folders} files have been processed, time: {time.time() - start:.2f} sec')
+    print(
+        f"All {max_folders} files have been processed, time: {time.time() - start:.2f} sec"
+    )
 
     if args.create_valid:
         # Count folders in the MoisesDB dataset
@@ -256,7 +338,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
         # valid_size = min(args.valid_size, max_folders)
         valid_size = 10
         list_folders = list(result.keys())
-        print(f'Top {valid_size} folders:')
+        print(f"Top {valid_size} folders:")
         for track in list(result.items())[:valid_size]:
             print(track)
 
@@ -282,14 +364,14 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
                 shutil.copytree(source_folder, destination)
                 shutil.rmtree(source_folder)
                 num_val += 1
-                print(f'Folder: {folder}, num_stems: {result[folder]}')
+                print(f"Folder: {folder}, num_stems: {result[folder]}")
                 if num_val >= valid_size:
                     break
             else:
                 print(f"Folder {source_folder} not found.")
 
-    print('The end!')
+    print("The end!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(None)

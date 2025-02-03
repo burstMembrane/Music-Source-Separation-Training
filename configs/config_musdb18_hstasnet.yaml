@@ -4,8 +4,8 @@ audio:
   hop_length: 512
   n_fft: 1024
   # the size of the chunk to be loaded from the audio file
-  chunk_size: 131584
-  min_mean_abs: 0.0
+  chunk_size: 44100
+  min_mean_abs: 0.1
 
 model:
   num_channels: 2
@@ -18,7 +18,7 @@ model:
   rnn_hidden_size: 512
   
 training:
-  batch_size: 16
+  batch_size: 12
   num_epochs: 200
   num_steps: 1000
   # start high and then ramp down
@@ -28,30 +28,73 @@ training:
   instruments: ['drums', 'bass', 'other', 'vocals']
   target_instrument: null
   device: "cuda"
-  optimizer: "adam"
+  optimizer: "adamw"
   q: 0.95
   coarse_loss_clip: true
   use_amp: true
   grad_clip: 0
   other_fix: false # it's needed for checking on multisong dataset if other is actually instrumental
-
 augmentations:
   enable: true # enable or disable all augmentations (to fast disable if needed)
   loudness: true # randomly change loudness of each stem on the range (loudness_min; loudness_max)
   loudness_min: 0.5
   loudness_max: 1.5
   mixup: true # mix several stems of same type with some probability (only works for dataset types: 1, 2, 3)
-  mixup_probs:
-    !!python/tuple # 2 additional stems of the same type (1st with prob 0.2, 2nd with prob 0.02)
+  mixup_probs: !!python/tuple # 2 additional stems of the same type (1st with prob 0.2, 2nd with prob 0.02)
     - 0.2
     - 0.02
   mixup_loudness_min: 0.5
   mixup_loudness_max: 1.5
   all:
-    channel_shuffle: 0.5 # Set 0 or lower to disable
+    channel_shuffle: 0.5 # set 0 or lower to disable
     random_inverse: 0.1 # inverse track (better lower probability)
     random_polarity: 0.5 # polarity change (multiply waveform to -1)
-    
+  vocals:
+      pitch_shift: 0.1
+      pitch_shift_min_semitones: -5
+      pitch_shift_max_semitones: 5
+      seven_band_parametric_eq: 0.1
+      seven_band_parametric_eq_min_gain_db: -9
+      seven_band_parametric_eq_max_gain_db: 9
+      tanh_distortion: 0.1
+      tanh_distortion_min: 0.1
+      tanh_distortion_max: 0.7
+  bass:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -2
+    pitch_shift_max_semitones: 2
+    seven_band_parametric_eq: 0.1
+    seven_band_parametric_eq_min_gain_db: -3
+    seven_band_parametric_eq_max_gain_db: 6
+    tanh_distortion: 0.1
+    tanh_distortion_min: 0.1
+    tanh_distortion_max: 0.5
+  drums:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -5
+    pitch_shift_max_semitones: 5
+    seven_band_parametric_eq: 0.1
+    seven_band_parametric_eq_min_gain_db: -9
+    seven_band_parametric_eq_max_gain_db: 9
+    tanh_distortion: 0.1
+    tanh_distortion_min: 0.1
+    tanh_distortion_max: 0.6
+  other:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -4
+    pitch_shift_max_semitones: 4
+    gaussian_noise: 0.1
+    gaussian_noise_min_amplitude: 0.001
+    gaussian_noise_max_amplitude: 0.015
+    time_stretch: 0.1
+    time_stretch_min_rate: 0.8
+    time_stretch_max_rate: 1.25
+# add loss configuration section
+loss_multistft:  # add multistft loss parameters
+  fft_sizes: [1024, 2048, 4096]
+  hop_sizes: [256, 512, 1024]
+  win_lengths: [1024, 2048, 4096]
+  window: "hann_window"
     
 inference:
   batch_size: 4

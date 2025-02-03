@@ -431,17 +431,28 @@ def demix(
                     # Distribute the model output back into the result and increment the counter
                     for j, (start, seg_len) in enumerate(batch_locations):
                         if mode == "generic":
-                            result[..., start : start + seg_len] += (
-                                x[j, ..., :seg_len].cpu() * window[..., :seg_len]
+                            # Get the actual output length from the model
+                            output_len = x[j].shape[-1]
+
+                            # Use the minimum length between the output, segment length, and window
+                            use_len = min(output_len, seg_len, window.shape[-1])
+
+                            # Ensure all tensors are the same length for the multiplication
+                            output_segment = x[j, ..., :use_len].cpu()
+                            window_segment = window[..., :use_len]
+
+                            # Update the result using the matched lengths
+                            result[..., start : start + use_len] += (
+                                output_segment * window_segment
                             )
-                            counter[..., start : start + seg_len] += window[
-                                ..., :seg_len
-                            ]
+                            counter[..., start : start + use_len] += window_segment
                         else:
-                            result[..., start : start + seg_len] += x[
-                                j, ..., :seg_len
+                            # For non-generic mode, use the minimum length
+                            use_len = min(x[j].shape[-1], seg_len)
+                            result[..., start : start + use_len] += x[
+                                j, ..., :use_len
                             ].cpu()
-                            counter[..., start : start + seg_len] += 1.0
+                            counter[..., start : start + use_len] += 1.0
 
                     # Clear the batch placeholders
                     batch_data.clear()

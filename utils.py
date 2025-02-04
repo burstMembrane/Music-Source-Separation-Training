@@ -2,18 +2,19 @@
 __author__ = "Roman Solovyev (ZFTurbo): https://github.com/ZFTurbo/"
 
 import argparse
+import os
+from typing import Any, Dict, List, Tuple, Union
+
+import loralib as lora
+import matplotlib.pyplot as plt
 import numpy as np
+import soundfile as sf
 import torch
 import torch.nn as nn
 import yaml
-import os
-import soundfile as sf
-import matplotlib.pyplot as plt
 from ml_collections import ConfigDict
 from omegaconf import OmegaConf
 from tqdm.auto import tqdm
-from typing import Dict, List, Tuple, Any, Union
-import loralib as lora
 
 
 def load_config(model_type: str, config_path: str) -> Union[ConfigDict, OmegaConf]:
@@ -108,7 +109,8 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple:
 
         model = Swin_UperNet_Model(config)
     elif model_type == "bandit":
-        from models.bandit.core.model import MultiMaskMultiSourceBandSplitRNNSimple
+        from models.bandit.core.model import \
+            MultiMaskMultiSourceBandSplitRNNSimple
 
         model = MultiMaskMultiSourceBandSplitRNNSimple(**config.model)
     elif model_type == "bandit_v2":

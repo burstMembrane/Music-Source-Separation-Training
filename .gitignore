@@ -2,6 +2,7 @@ __pycache__
 .DS_Store
 *.py[cod]
 *$py.class
+musbb_models/
 .vscode/
 # Distribution / packaging
 .Python

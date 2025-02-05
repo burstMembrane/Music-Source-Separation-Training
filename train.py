@@ -31,6 +31,22 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
+def restricted_float(x: str) -> float:
+    """
+    Convert a string to a float and ensure that it is in the interval (0, 1].
+    This will be used to validate the '--train_subset' command-line argument.
+    """
+    try:
+        x = float(x)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{x} is not a floating-point literal")
+    if x <= 0 or x > 1:
+        raise argparse.ArgumentTypeError(
+            f"train_subset must be in the range (0, 1], got {x}"
+        )
+    return x
+
+
 def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
     """
     Parse command-line arguments for configuring the model, dataset, and training parameters.
@@ -140,6 +156,18 @@ def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
         default="",
         help="Initial checkpoint to LoRA weights",
     )
+    parser.add_argument(
+        "--train_subset",
+        type=restricted_float,
+        default=1.0,
+        help="Fraction of the training dataset to use (between 0 and 1]. 1 means use the full dataset.",
+    )
+    parser.add_argument(
+        "--valid_subset",
+        type=restricted_float,
+        default=1.0,
+        help="Fraction of the validation dataset to use (between 0 and 1]. 1 means use the full dataset.",
+    )
 
     if dict_args is not None:
         args = parser.parse_args([])
@@ -242,6 +270,11 @@ def prepare_data(config: Dict, args: argparse.Namespace, batch_size: int) -> Dat
         dataset_type=args.dataset_type,
     )
 
+    if args.train_subset < 1.0:
+        trainset = torch.utils.data.Subset(
+            trainset, range(int(len(trainset) * args.train_subset))
+        )
+
     train_loader = DataLoader(
         trainset,
         batch_size=batch_size,
@@ -250,6 +283,36 @@ def prepare_data(config: Dict, args: argparse.Namespace, batch_size: int) -> Dat
         pin_memory=args.pin_memory,
     )
     return train_loader
+
+
+def prepare_validation_data(config: Dict, args: argparse.Namespace) -> DataLoader:
+    """
+    Prepare the validation dataset and data loader.
+    """
+    validset = MSSDataset(
+        config,
+        args.valid_path,
+        batch_size=1,  # Typically, validation is done with batch size 1
+        metadata_path=os.path.join(
+            args.results_path, f"metadata_{args.dataset_type}_valid.pkl"
+        ),
+        dataset_type=args.dataset_type,
+    )
+
+    # If using a subset, keep only a fraction of the validation dataset
+    if args.valid_subset < 1.0:
+        total_samples = len(validset)
+        subset_size = max(1, int(total_samples * args.valid_subset))
+        indices = list(range(subset_size))
+        validset = torch.utils.data.Subset(validset, indices)
+        print(
+            f"Using {subset_size}/{total_samples} samples for validation (valid_subset={args.valid_subset})"
+        )
+
+    valid_loader = DataLoader(
+        validset, batch_size=1, shuffle=False, num_workers=args.num_workers
+    )
+    return valid_loader
 
 
 def initialize_model_and_device(

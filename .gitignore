@@ -79,6 +79,7 @@ wandb/
 pretrained/
 input/
 separation_results/
-
+*.pt
+*.ckpt
 inference_*.sh
 train_*.sh

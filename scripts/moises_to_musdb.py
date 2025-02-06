@@ -1,13 +1,20 @@
+# import argparse
 import argparse
+import json
+import logging
 import os
 import shutil
 import time
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Tuple, Union
+import shutil
 
 import numpy as np
 import soundfile as sf
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def combine_audio_files(files: List[str]) -> Tuple[np.ndarray, int]:
@@ -18,9 +25,12 @@ def combine_audio_files(files: List[str]) -> Tuple[np.ndarray, int]:
     Returns:
     - Tuple[np.ndarray, int]: A Tuple containing the combined audio data array and sample rate.
     """
+    logger.debug(f"Combining {len(files)} audio files")
+    if not files:
+        logger.error("No files to combine")
     combined_data, sample_rate = sf.read(files[0])
 
-    for file in files[1:]:
+    for file in tqdm(files[1:], desc="Combining audio files", leave=False):
         data, sr = sf.read(file)
         if len(data) > len(combined_data):
             combined_data = np.pad(
@@ -71,19 +81,24 @@ def process_folder(
     - src_folder (str): Path to the source folder of MoisesDB.
     - dest_folder (str): Path to the target folder for MUSDB18.
     """
+    logger.info(f"Processing folder: {os.path.basename(src_folder)}")
 
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
+        logger.debug(f"Created destination folder: {dest_folder}")
 
     categories = stems
-
-    # If the required stem does not exist in the source folder (src_folder),
-    # we add silence instead of the file with the same duration as the standard file.
     problem_categories = []
     duration = 0
     all_files = files_to_categories(src_folder, categories)
 
-    # Using tqdm to display progress for categories
+    total_files = sum(len(files) for files in all_files.values())
+    logger.info(
+        f"Found {total_files} total audio files across {len(categories)} categories"
+    )
+
+    # If the required stem does not exist in the source folder (src_folder),
+    # we add silence instead of the file with the same duration as the standard file.
     for category in tqdm(
         categories, desc=f"Processing categories in {os.path.basename(src_folder)}"
     ):
@@ -91,6 +106,7 @@ def process_folder(
         if files:
             if len(files) > 1:
                 combined_data, sample_rate = combine_audio_files(files)
+
             else:
                 combined_data, sample_rate = sf.read(files[0])
 
@@ -114,6 +130,8 @@ def process_folder(
         sf.write(os.path.join(dest_folder, f"{category}.wav"), silence, sample_rate)
     # mixture.wav
     all_files_list = [file for sublist in all_files.values() for file in sublist]
+    if not all_files_list:
+        return
     mixture_data, sample_rate = combine_audio_files(all_files_list)
     sf.write(os.path.join(dest_folder, "mixture.wav"), mixture_data, sample_rate)
 
@@ -146,21 +164,40 @@ def convert_dataset(
     - max_folders (int): Maximum number of folders to process.
     - num_workers (int): Number of parallel workers for processing.
     """
+    logger.info(f"Starting dataset conversion from {src_root} to {dest_root}")
+    logger.info(f"Processing up to {max_folders} folders using {num_workers} workers")
+
     folders_to_process = []
-    for folder in os.listdir(src_root):
+    for folder in tqdm(os.listdir(src_root), desc="Scanning folders"):
         if len(folders_to_process) >= max_folders:
             break
-
+        # load the data.json from the folder
+        # and combing the song and artist attributes to create the folder name
+        data_path = os.path.join(src_root, folder, "data.json")
+        if not os.path.exists(data_path):
+            logger.warning(f"No data.json found in {src_root}/{folder}")
+            continue
+        with open(data_path, "r") as f:
+            data = json.load(f)
+        folder_name = f"{data['artist']} - {data['song']}"
         src_folder = os.path.join(src_root, folder)
-        dest_folder = os.path.join(dest_root, folder)
-
+        dest_folder = os.path.join(dest_root, folder_name)
+        logger.info(f"Processing folder: {folder_name}")
         if os.path.isdir(src_folder):
             folders_to_process.append((src_folder, dest_folder, stems, sample_rate))
         else:
             print(f"Skip {src_folder} — not dir")
 
+    logger.info(f"Found {len(folders_to_process)} folders to process")
+
     with Pool(num_workers) as pool:
-        pool.map(process_folder_wrapper, folders_to_process)
+        list(
+            tqdm(
+                pool.imap(process_folder_wrapper, folders_to_process),
+                total=len(folders_to_process),
+                desc="Converting folders",
+            )
+        )
 
 
 # Count number of subfolders in a folder
@@ -307,8 +344,19 @@ def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
 
 
 def main(args: Optional[argparse.Namespace] = None) -> None:
+    # Add logging configuration at the top
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+
     start = time.time()
     args = parse_args(args)
+
+    logger.info("Starting MoisesDB to MUSDB18 conversion")
+    logger.info(f"Configuration: {vars(args)}")
 
     source_directory = args.src_dir
     destination_directory = args.dest_dir
@@ -332,7 +380,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
     )
 
     if args.create_valid:
-        # Count folders in the MoisesDB dataset
+        logger.info("Creating validation set")
         result = count_folders_parallel(source_directory, stems)
         result = dict(sorted(result.items(), key=lambda item: item[1], reverse=True))
         # valid_size = min(args.valid_size, max_folders)
@@ -352,7 +400,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
         num_val = 0
 
         # Copy folders from train_tracks to valid folder
-        for folder in list_folders:
+        for folder in tqdm(list_folders, desc="Creating validation set"):
             folder_name = os.path.basename(folder)  # Get folder name
 
             # Form the path to the folder in train_tracks
@@ -370,7 +418,43 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
             else:
                 print(f"Folder {source_folder} not found.")
 
+    total_time = time.time() - start
+    logger.info(f"Conversion completed in {total_time:.2f} seconds")
+
     print("The end!")
+
+    # Add validation step
+    logger.info("Validating output files...")
+    expected_stems = stems + ["other", "mixture"]
+    all_folders = [
+        f
+        for f in os.listdir(destination_directory)
+        if os.path.isdir(os.path.join(destination_directory, f))
+    ]
+
+    validation_errors = []
+    for folder in tqdm(all_folders, desc="Validating output files"):
+        folder_path = os.path.join(destination_directory, folder)
+        for stem in expected_stems:
+            stem_path = os.path.join(folder_path, f"{stem}.wav")
+            if not os.path.exists(stem_path):
+                validation_errors.append(f"{folder_path}")
+
+    if validation_errors:
+        logger.error("Validation failed! Missing files:")
+        for error in validation_errors:
+            logger.error(error)
+    else:
+        logger.info("Validation successful! All required files are present.")
+    # ask the user if they want to delete the parent directory of the error files
+    if validation_errors:
+        delete_folder = input("Do you want to delete the errored directories? (y/n)")
+        if delete_folder == "y":
+            for error in validation_errors:
+                print(f"rm -rf {error}")
+                shutil.rmtree(error)
+                if not os.path.exists(error):
+                    print(f"Deleted {error}")
 
 
 if __name__ == "__main__":

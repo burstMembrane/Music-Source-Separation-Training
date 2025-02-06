@@ -7,7 +7,6 @@ import shutil
 import time
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Tuple, Union
-import shutil
 
 import numpy as np
 import soundfile as sf
@@ -108,6 +107,7 @@ def process_folder(
                 combined_data, sample_rate = combine_audio_files(files)
 
             else:
+                logger.error(f"Only one file found for {category}")
                 combined_data, sample_rate = sf.read(files[0])
 
             sf.write(
@@ -156,39 +156,47 @@ def convert_dataset(
     num_workers: int = 4,
     sample_rate: int = 44100,
 ) -> None:
-    """
-    Converts MoisesDB dataset to MUSDB18 format for a specified number of folders.
-    Parameters:
-    - src_root (str): Root directory of the MoisesDB dataset.
-    - dest_root (str): Root directory where the new dataset will be saved.
-    - max_folders (int): Maximum number of folders to process.
-    - num_workers (int): Number of parallel workers for processing.
-    """
     logger.info(f"Starting dataset conversion from {src_root} to {dest_root}")
     logger.info(f"Processing up to {max_folders} folders using {num_workers} workers")
 
+    # First load all metadata and get existing folders
+    existing_folders = set()
+    if os.path.exists(dest_root):
+        for folder in os.listdir(dest_root):
+            folder_path = os.path.join(dest_root, folder)
+            if os.path.isdir(folder_path):
+                existing_folders.add(folder_path)
+    logger.info(f"Found {len(existing_folders)} existing folders in destination")
+
+    # Load all metadata first
     folders_to_process = []
-    for folder in tqdm(os.listdir(src_root), desc="Scanning folders"):
+    for folder in tqdm(os.listdir(src_root), desc="Loading metadata"):
         if len(folders_to_process) >= max_folders:
             break
-        # load the data.json from the folder
-        # and combing the song and artist attributes to create the folder name
+
         data_path = os.path.join(src_root, folder, "data.json")
         if not os.path.exists(data_path):
             logger.warning(f"No data.json found in {src_root}/{folder}")
             continue
+
         with open(data_path, "r") as f:
             data = json.load(f)
+
         folder_name = f"{data['artist']} - {data['song']}"
-        src_folder = os.path.join(src_root, folder)
         dest_folder = os.path.join(dest_root, folder_name)
-        logger.info(f"Processing folder: {folder_name}")
+
+        # Skip if folder already exists
+        if dest_folder in existing_folders:
+            logger.debug(f"Skipping existing folder: {dest_folder}")
+            continue
+
+        src_folder = os.path.join(src_root, folder)
         if os.path.isdir(src_folder):
             folders_to_process.append((src_folder, dest_folder, stems, sample_rate))
         else:
             print(f"Skip {src_folder} — not dir")
 
-    logger.info(f"Found {len(folders_to_process)} folders to process")
+    logger.info(f"Found {len(folders_to_process)} new folders to process")
 
     with Pool(num_workers) as pool:
         list(
@@ -446,15 +454,6 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
             logger.error(error)
     else:
         logger.info("Validation successful! All required files are present.")
-    # ask the user if they want to delete the parent directory of the error files
-    if validation_errors:
-        delete_folder = input("Do you want to delete the errored directories? (y/n)")
-        if delete_folder == "y":
-            for error in validation_errors:
-                print(f"rm -rf {error}")
-                shutil.rmtree(error)
-                if not os.path.exists(error):
-                    print(f"Deleted {error}")
 
 
 if __name__ == "__main__":

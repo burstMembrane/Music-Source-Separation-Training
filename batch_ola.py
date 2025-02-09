@@ -60,7 +60,7 @@ def overlap_add_separation(
         f"Split into {num_chunks} chunks of length {chunk_len} ({chunk_len / sample_rate:.2f} seconds)"
     )
 
-    with torch.no_grad():
+    with torch.inference_mode():
         if batch_size is None:
             processed_batch = model(chunks_tensor)
         else:
@@ -122,6 +122,11 @@ def get_args():
     parser.add_argument(
         "--batch_size", type=int, default=None, help="Batch size for model processing"
     )
+    parser.add_argument(
+        "--use_accelerate",
+        action="store_true",
+        help="Use Hugging Face Accelerate for inference",
+    )
 
     return parser.parse_args()
 
@@ -135,12 +140,21 @@ def main():
     # Load weights
     if args.model_path:
         load_not_compatible_weights(model, args.model_path)
-        model = model.to(args.device)
+        if args.use_accelerate:
+            from accelerate import Accelerator
+
+            accelerator = Accelerator()
+            model = accelerator.prepare(model)
+        else:
+            model = model.to(args.device)
         model.eval()
 
     # Rest of processing remains the same
     mix, sr = torchaudio.load(args.input_audio)
-    mix = mix.to(args.device)
+    if args.use_accelerate:
+        mix = accelerator.prepare(mix)
+    else:
+        mix = mix.to(args.device)
     mix = mix.unsqueeze(0)
 
     output = overlap_add_separation(

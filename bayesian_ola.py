@@ -1,17 +1,14 @@
-from ast import parse
 import logging
 import time
 import warnings
 import argparse
 from pathlib import Path
 
-import numpy as np
 import torch
 import torchaudio
 from skopt import gp_minimize
-from skopt.space import Integer, Real
+from skopt.space import Integer
 from skopt.utils import use_named_args
-from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 from batch_ola import get_args, overlap_add_separation
@@ -66,10 +63,10 @@ def optimisation_objective(
 def bayesian_optimisation(
     model, mix, sample_rate, device, num_sources, num_calls, random_state
 ):
-    # Define the search space
+    # TODO: make these parameters configurable
     space = [
-        Integer(1.0, 5.0, name="chunk"),  # Chunk size in seconds
-        Integer(2, 64, name="batch_size"),  # Batch size
+        Integer(1, 2, name="chunk"),  # Chunk size in seconds
+        Integer(32, 86, name="batch_size"),  # Batch size
     ]
 
     @use_named_args(space)
@@ -82,7 +79,7 @@ def bayesian_optimisation(
         )
 
     # Run Bayesian optimisation
-    result = gp_minimize(
+    return gp_minimize(
         func=objective,
         dimensions=space,
         n_calls=num_calls,  # Number of optimisation iterations

@@ -70,7 +70,6 @@ def main():
     out = out.squeeze(0)
     print(out.shape)
 
-    # np.nan_to_num(out, copy=True, nan=0.0)
     os.makedirs(args.output_dir, exist_ok=True)
     instruments = config.training.instruments
     print("Saving estimates for:", instruments)

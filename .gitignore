@@ -78,6 +78,8 @@ wandb/
 pretrained/
 input/
 separation_results/
-
+out/
+sep/
+pt_models/
 inference_*.sh
 train_*.sh

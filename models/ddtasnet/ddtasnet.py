@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-from ddtasnet.cbam import CBAM
-from ddtasnet.memory import Memory
-from ddtasnet.skip_attention import SkipAttention
-from ddtasnet.spec_codec import SpecDecoder, SpecEncoder
-from ddtasnet.time_codec import TimeDecoder, TimeEncoder
+from .cbam import CBAM
+from .memory import Memory
+from .skip_attention import SkipAttention
+from .spec_codec import SpecDecoder, SpecEncoder
+from .time_codec import TimeDecoder, TimeEncoder
 
 
 class DDTasNet(nn.Module):

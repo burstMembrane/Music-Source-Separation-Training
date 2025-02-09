@@ -21,7 +21,7 @@ Available models for training:
 * Apollo [[Paper](https://arxiv.org/html/2409.08514v1), [Repository](https://github.com/JusperLee/Apollo)] Key: `apollo`.
 * TS BSMamba2 [[Paper](https://arxiv.org/pdf/2409.06245), [Repository](https://github.com/baijinglin/TS-BSmamba2)] Key: `bs_mamba2`.
 * HSTasnet [[Paper](https://arxiv.org/abs/2402.17701),[Repository](https://github.com/ovistetom/hstasnet)] Key: `hstasnet`
-
+* DDTasnet [[Paper](https://arxiv.org/abs/2402.17701),[Repository](https://github.com/ovistetom/hstasnet)] Key: `ddtasnet`
 1. **Note 1**: For `segm_models` there are many different encoders is possible. [Look here](https://github.com/qubvel/segmentation_models.pytorch#encoders-).
 2. **Note 2**: Thanks to [@lucidrains](https://github.com/lucidrains) for recreating the RoFormer models based on papers.
 3. **Note 3**: For `torchseg` gives access to more than 800 encoders from `timm` module. It's similar to `segm_models`.

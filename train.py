@@ -2,29 +2,31 @@
 __author__ = "Roman Solovyev (ZFTurbo): https://github.com/ZFTurbo/"
 __version__ = "1.0.4"
 
-import argparse
-import os
 import random
-import warnings
-from typing import Callable, Dict, List, Tuple, Union
-
-import auraloss
-import loralib as lora
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import wandb
-from ml_collections import ConfigDict
-from torch.cuda.amp.grad_scaler import GradScaler
-from torch.optim import SGD, Adam, AdamW, RAdam, RMSprop
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
+import argparse
 from tqdm.auto import tqdm
+import os
+import torch
+import wandb
+import numpy as np
+import auraloss
+import torch.nn as nn
+from torch.optim import Adam, AdamW, SGD, RAdam, RMSprop
+from torch.utils.data import DataLoader
+from torch.cuda.amp.grad_scaler import GradScaler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from ml_collections import ConfigDict
+import torch.nn.functional as F
+from typing import List, Tuple, Dict, Union, Callable
 
 from dataset import MSSDataset
-from utils import bind_lora_to_model, get_model_from_config, load_start_checkpoint
-from valid import valid, valid_multi_gpu
+from utils import get_model_from_config
+from valid import valid_multi_gpu, valid
+
+from utils import bind_lora_to_model, load_start_checkpoint
+import loralib as lora
+
+import warnings
 
 warnings.filterwarnings("ignore")
 
@@ -60,7 +62,7 @@ def parse_args(dict_args: Union[Dict, None]) -> argparse.Namespace:
         "--model_type",
         type=str,
         default="mdx23c",
-        help="One of mdx23c, htdemucs, segm_models, mel_band_roformer, bs_roformer, swin_upernet, bandit, hstasnet, ddtasnet",
+        help="One of mdx23c, htdemucs, segm_models, mel_band_roformer, bs_roformer, swin_upernet, bandit",
     )
     parser.add_argument("--config_path", type=str, help="path to config file")
     parser.add_argument(
@@ -572,7 +574,7 @@ def train_one_epoch(
     """
 
     model.train().to(device)
-    print(f"Train epoch: {epoch} Learning rate: {optimizer.param_groups[0]['lr']}")
+    print(f'Train epoch: {epoch} Learning rate: {optimizer.param_groups[0]["lr"]}')
     loss_val = 0.0
     total = 0
 
@@ -634,6 +636,7 @@ def train_one_epoch(
 
 
 def save_weights(store_path, model, device_ids, train_lora):
+
     if train_lora:
         torch.save(lora.lora_state_dict(model), store_path)
     else:
@@ -782,6 +785,7 @@ def train_model(args: argparse.Namespace) -> None:
     print(f"Train for: {config.training.num_epochs} epochs")
 
     for epoch in range(config.training.num_epochs):
+
         train_one_epoch(
             model,
             config,

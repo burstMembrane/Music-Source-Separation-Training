@@ -3,10 +3,8 @@ audio:
   num_channels: 2
   hop_length: 512
   n_fft: 1024
-  # the size of the chunk to be loaded from the audio file
-  # chunk_size: 485100 # 44100 * 11
-  chunk_size: 44100
-  min_mean_abs: 0.0
+  chunk_size: 88200
+  min_mean_abs: 0.1
 
 model:
   num_channels: 2
@@ -19,17 +17,17 @@ model:
   rnn_hidden_size: 512
   
 training:
-  batch_size: 2
+  batch_size: 24    
   num_epochs: 200
   num_steps: 1000
   # start high and then ramp down
-  lr: 9.0e-05
+  lr: 5.0e-05
   patience: 2
   reduce_factor: 0.95
   instruments: ['drums', 'bass', 'other', 'vocals']
   target_instrument: null
   device: "cuda"
-  optimizer: "adam"
+  optimizer: "adamw"
   q: 0.95
   coarse_loss_clip: true
   use_amp: true
@@ -90,13 +88,6 @@ augmentations:
     time_stretch: 0.1
     time_stretch_min_rate: 0.8
     time_stretch_max_rate: 1.25
-# add loss configuration section
-loss_multistft:  # add multistft loss parameters
-  fft_sizes: [1024, 2048, 4096]
-  hop_sizes: [256, 512, 1024]
-  win_lengths: [1024, 2048, 4096]
-  window: "hann_window"
-
 
 inference:
   batch_size: 4

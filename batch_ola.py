@@ -11,7 +11,7 @@ import torchaudio
 from torchaudio.transforms import Fade
 from tqdm import tqdm
 
-from utils import get_model_from_config, load_not_compatible_weights
+from utils import get_model_from_config
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -59,7 +59,7 @@ def overlap_add_separation(
         f"Split into {num_chunks} chunks of length {chunk_len} ({chunk_len / sample_rate:.2f} seconds)"
     )
 
-    with torch.no_grad():
+    with torch.inference_mode():
         if batch_size is None:
             processed_batch = model(chunks_tensor)
         else:
@@ -120,6 +120,11 @@ def get_args():
     )
     parser.add_argument(
         "--batch_size", type=int, default=None, help="Batch size for model processing"
+    )
+    parser.add_argument(
+        "--use_accelerate",
+        action="store_true",
+        help="Use Hugging Face Accelerate for inference",
     )
 
     return parser.parse_args()

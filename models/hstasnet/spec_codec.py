@@ -2,14 +2,18 @@ import torch  # Core PyTorch
 import torch.nn as nn  # Neural network modules
 import torch.nn.functional as ff  # Functional ops (e.g. activation)
 import torchaudio.transforms as tt  # Audio-specific transforms (STFT, inverse-STFT)
+from typing import Tuple, Optional
+
 
 class SpecEncoder(nn.Module):
-    def __init__(self,
-                 n_win: int = 1024,
-                 n_hop: int = 512,
-                 n_fft: int = 1024,
-                 window: str = 'hamming',
-                 device=torch.device('cpu')):
+    def __init__(
+        self,
+        n_win: int = 1024,
+        n_hop: int = 512,
+        n_fft: int = 1024,
+        window: str = "hamming",
+        device: torch.device = torch.device("cpu"),
+    ) -> None:
         """
         Spectrogram-based encoder for converting time-domain signals into
         magnitude and phase representations (Section 3.2 in the paper).
@@ -26,15 +30,15 @@ class SpecEncoder(nn.Module):
         self.n_fft = n_fft
 
         # Select the appropriate window function based on 'window' argument
-        if window == 'bartlett':
+        if window == "bartlett":
             window_fn = torch.bartlett_window
-        elif window == 'blackman':
+        elif window == "blackman":
             window_fn = torch.blackman_window
-        elif window == 'hamming':
+        elif window == "hamming":
             window_fn = torch.hamming_window
-        elif window == 'hann':
+        elif window == "hann":
             window_fn = torch.hann_window
-        elif window == 'kaiser':
+        elif window == "kaiser":
             window_fn = torch.kaiser_window
         else:
             raise Exception(f"Invalid window type for STFT : '{window}'.")
@@ -52,36 +56,41 @@ class SpecEncoder(nn.Module):
             window_fn=window_fn,
             normalized=True,
             onesided=True,
-            center=False
+            center=False,
         ).to(device)
 
-    def forward(self, waveform):
+    def forward(
+        self, waveform: torch.FloatTensor
+    ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """
         Forward pass: Takes a batch of waveforms [B, L] and returns:
           spec_magn: [B, T, F] magnitude
           spec_angl: [B, T, F] phase angles in radians
         """
         # 1) Compute the complex spectrogram using torchaudio
-        spec = self.transform(waveform)   # Shape: [B, F, T]
+        spec = self.transform(waveform)  # Shape: [B, F, T]
 
         # 2) Separate out the magnitude
-        spec_magn = torch.abs(spec)       # [B, F, T]
+        spec_magn = torch.abs(spec)  # [B, F, T]
         # Rearrange to [B, T, F] for consistency with the time path
         spec_magn = spec_magn.permute(0, 2, 1)
 
         # 3) Separate out the phase angle
-        spec_angl = torch.angle(spec)     # [B, F, T]
+        spec_angl = torch.angle(spec)  # [B, F, T]
         spec_angl = spec_angl.permute(0, 2, 1)  # [B, T, F]
 
         return spec_magn, spec_angl
 
+
 class SpecDecoder(nn.Module):
-    def __init__(self,
-                 n_win: int = 1024,
-                 n_hop: int = 512,
-                 n_fft: int = 1024,
-                 window: str = 'hamming',
-                 device=torch.device('cpu')):
+    def __init__(
+        self,
+        n_win: int = 1024,
+        n_hop: int = 512,
+        n_fft: int = 1024,
+        window: str = "hamming",
+        device: torch.device = torch.device("cpu"),
+    ) -> None:
         """
         Spectrogram-based decoder for reconstructing time-domain waveforms
         from magnitude and phase (Section 3.2 in the paper).
@@ -98,15 +107,15 @@ class SpecDecoder(nn.Module):
         self.n_fft = n_fft
 
         # Window selection for the inverse STFT
-        if window == 'bartlett':
+        if window == "bartlett":
             window_fn = torch.bartlett_window
-        elif window == 'blackman':
+        elif window == "blackman":
             window_fn = torch.blackman_window
-        elif window == 'hamming':
+        elif window == "hamming":
             window_fn = torch.hamming_window
-        elif window == 'hann':
+        elif window == "hann":
             window_fn = torch.hann_window
-        elif window == 'kaiser':
+        elif window == "kaiser":
             window_fn = torch.kaiser_window
         else:
             raise Exception(f"Invalid window type for STFT : '{window}'.")
@@ -120,10 +129,15 @@ class SpecDecoder(nn.Module):
             window_fn=window_fn,
             normalized=True,
             onesided=True,
-            center=False
+            center=False,
         ).to(device)
 
-    def forward(self, spec_magn, spec_angl, waveform_length=None):
+    def forward(
+        self,
+        spec_magn: torch.FloatTensor,
+        spec_angl: torch.FloatTensor,
+        waveform_length: Optional[int] = None,
+    ) -> torch.FloatTensor:
         """
         Forward pass:
           spec_magn: [B, T, F] magnitude
@@ -135,7 +149,7 @@ class SpecDecoder(nn.Module):
         # 1) Convert magnitude and angle back to real & imaginary parts
         spec_real = spec_magn * torch.cos(spec_angl)  # [B, T, F]
         spec_imag = spec_magn * torch.sin(spec_angl)  # [B, T, F]
-        spec = torch.complex(spec_real, spec_imag)    # Combine into a complex tensor
+        spec = torch.complex(spec_real, spec_imag)  # Combine into a complex tensor
 
         # 2) Rearrange dimensions for inverse STFT [B, F, T]
         spec = spec.permute(0, 2, 1)
@@ -145,25 +159,30 @@ class SpecDecoder(nn.Module):
 
         return waveform
 
-if __name__ == '__main__':
-    B, C, L = 10, 2, 500000
-    x = torch.randn(B, L)  # [10, 500000]
-    print(f'Input shape: {x.size()}')
+
+if __name__ == "__main__":
+    B: int = 10
+    C: int = 2
+    L: int = 500000
+    x: torch.FloatTensor = torch.randn(B, L)  # [10, 500000]
+    print(f"Input shape: {x.size()}")
 
     # Instantiate the spectrogram encoder
-    encoder = SpecEncoder(window='hamming')
+    encoder: SpecEncoder = SpecEncoder(window="hamming")
 
     # Encode to magnitude & angle
+    y_magn: torch.FloatTensor
+    y_angl: torch.FloatTensor
     y_magn, y_angl = encoder(x)
-    print(f'Magnitude shape: {y_magn.size()}')
+    print(f"Magnitude shape: {y_magn.size()}")
 
     # Instantiate the spectrogram decoder
-    decoder = SpecDecoder(window='hamming')
+    decoder: SpecDecoder = SpecDecoder(window="hamming")
 
     # Decode back to waveform
-    z = decoder(y_magn, y_angl, waveform_length=None)
-    print(f'Decoded shape: {z.size()}')
+    z: torch.FloatTensor = decoder(y_magn, y_angl, waveform_length=None)
+    print(f"Decoded shape: {z.size()}")
 
     # Compare a short slice of input & output
-    print(f'Original first batch sample (slice): {x[0, :8]}')
-    print(f'Decoded first batch sample (slice):  {z[0, :8]}')
+    print(f"Original first batch sample (slice): {x[0, :8]}")
+    print(f"Decoded first batch sample (slice):  {z[0, :8]}")

@@ -134,9 +134,7 @@ def main():
     args = get_args()
 
     # Load model using utils function
-    model, config = get_model_from_config(
-        args.model_type, args.config_path, args.device
-    )
+    model, config = get_model_from_config(args.model_type, args.config_path)
 
     # Load weights
     if args.model_path:

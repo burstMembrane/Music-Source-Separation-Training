@@ -8,6 +8,7 @@ from utils import get_model_from_config
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
 def validate_model_layers(model, device):
     """Validate that all layers in the model are on the correct device."""
     logger.info(f"Validating model layers on {device}")
@@ -32,19 +33,20 @@ def validate_model_layers(model, device):
         if buffer.dtype != torch.float32:
             logger.warning(f"Converting buffer from {buffer.dtype} to float32")
             buffer.data = buffer.data.to(torch.float32)
-    
+
     # Final consistency check
-    assert all(
-        p.device == device for p in model.parameters()
-    ), "Some parameters are still on incorrect device!"
-    assert all(
-        b.device == device for b in model.buffers()
-    ), "Some buffers are still on incorrect device!"
+    assert all(p.device == device for p in model.parameters()), (
+        "Some parameters are still on incorrect device!"
+    )
+    assert all(b.device == device for b in model.buffers()), (
+        "Some buffers are still on incorrect device!"
+    )
 
     return model
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Converts a  model to torchscript.")
+    parser = argparse.ArgumentParser(description="Converts a model to torchscript.")
 
     parser.add_argument(
         "--checkpoint", type=str, required=True, help="Path to the model ckpt."
@@ -63,17 +65,29 @@ def main():
     model.eval()
     logger.info(f"Model loaded from {args.model} to {device}")
     model = validate_model_layers(model, device)
+
     # Example input
-    B, C, L = config.inference.batch_size, config.audio.num_channels, config.audio.chunk_size # batch=1, 2-channels, length=100k, 4 sources
+    B, C, L = (
+        config.inference.batch_size,
+        config.audio.num_channels,
+        config.audio.chunk_size,
+    )
     example_inputs = torch.randn(B, C, L, device=device, dtype=torch.float32).to(device)
-    # Convert model to TorchScript
+
+    # Convert model to TorchScript using script instead of trace
     model.eval()
-    with Halo(text="Tracing to TorchScript...", spinner="dots"):
-        scripted_model = torch.jit.trace(model, example_inputs=example_inputs)
-    # add the audio.chunk_size to the model name
+    with Halo(text="Converting to TorchScript...", spinner="dots"):
+        # Use script instead of trace for better optimization
+
+        scripted_model = torch.jit.script(model, example_inputs)
+
+    # Verify the model works with example inputs
+    with torch.no_grad():
+        scripted_model(example_inputs)  # Warm-up run
+
     out_name = f"{args.model}_cs_{config.audio.chunk_size}.pt"
-    # Save the TorchScript model
-    scripted_model.save(out_name)
+    # Save the TorchScript model with optimization_level=3
+    scripted_model.save(out_name, _extra_files={"model_config": str(config)})
 
     logger.info(f"Scripted model saved to {out_name}")
 

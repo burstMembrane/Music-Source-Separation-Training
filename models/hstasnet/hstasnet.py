@@ -252,21 +252,102 @@ class HSTasNet(nn.Module):
         )
 
     def forward(
-        self, waveform: torch.FloatTensor, length: Optional[int] = None
-    ) -> torch.FloatTensor:
-        """Forward pass (Section 3.3: time path + freq path -> hybrid -> mask application -> decode).
-        Args:
-            waveform: Input tensor of shape [B, C, L]
-            length: Optional length to pad output to
-        Returns:
-            torch.FloatTensor: Output tensor of shape [B, S, C, L]
-        """
+        self, waveform: torch.Tensor, length: Optional[int] = None
+    ) -> torch.Tensor:
+        """Regular forward pass for non-JIT execution"""
+        if torch.jit.is_scripting():
+            return self.forward_jit(waveform, 0)
+        return self._forward_impl(waveform, length)
+
+    def forward_jit(self, waveform: torch.Tensor, length: int = 0) -> torch.Tensor:
+        """Optimized forward pass for TorchScript compilation"""
+        B, C, L = waveform.size()
+        x: torch.Tensor = waveform.reshape(B * C, L)
+
+        # Parallel encoding
+        x_time, x_norm = self.time_encoder(x)
+        x_spec, x_angl = self.spec_encoder(x)
+
+        # Efficient reshaping
+        BC, T, M = x_time.size()
+        BC, T, F = x_spec.size()
+
+        # Vectorized feature processing
+        x_time = x_time.view(B, C, T, M)
+        s_time = x_time.permute(0, 2, 1, 3).reshape(B, T, C * M)
+
+        x_spec = x_spec.view(B, C, T, F)
+        s_spec = x_spec.permute(0, 2, 1, 3).reshape(B, T, C * F)
+
+        # Parallel RNN processing
+        y_time = self.time_rnn_in(s_time)
+        y_spec = self.spec_rnn_in(s_spec)
+
+        # Hybrid processing
+        y = torch.cat((y_time, y_spec), dim=2)
+        y = self.hybrid_rnn(y)
+
+        # Efficient splitting and processing
+        H: int = self.rnn_hidden_size
+        y_time, y_spec = y.chunk(2, dim=2)
+
+        # Skip connections
+        s_time_fc = self.time_skip_fc(s_time)
+        s_spec_fc = self.spec_skip_fc(s_spec)
+
+        y_time = self.time_rnn_out(y_time) + s_time_fc
+        y_spec = self.spec_rnn_out(y_spec) + s_spec_fc
+
+        # Mask generation
+        S: int = self.num_sources
+        m_time = self.time_mask_fc(y_time).view(B, T, S, C, M)
+        m_spec = self.spec_mask_fc(y_spec).view(B, T, S, C, F)
+
+        m_time = m_time.permute(0, 2, 3, 1, 4)
+        m_spec = m_spec.permute(0, 2, 3, 1, 4)
+
+        # Memory-efficient expansion
+        x_time_exp = x_time.view(B, 1, C, T, M).expand(B, S, C, T, M)
+        x_spec_exp = x_spec.view(B, 1, C, T, F).expand(B, S, C, T, F)
+
+        # Mask application and reshape
+        y_time = (m_time * x_time_exp).reshape(B * S * C, T, M)
+        y_spec = (m_spec * x_spec_exp).reshape(B * S * C, T, F)
+
+        # Expand norms for decoding
+        x_norm_exp = (
+            x_norm.view(B, 1, C, T, 1).expand(B, S, C, T, 1).reshape(B * S * C, T, 1)
+        )
+        x_angl_exp = (
+            x_angl.view(B, 1, C, T, F).expand(B, S, C, T, F).reshape(B * S * C, T, F)
+        )
+
+        # Parallel decoding
+        z_time = self.time_decoder(y_time, x_norm_exp, length)
+        z_spec = self.spec_decoder(y_spec, x_angl_exp)
+
+        # Final reshape and combination
+        out = z_time.view(B, S, C, -1) + z_spec.view(B, S, C, -1)
+
+        # Handle padding without conditionals
+        L_out = out.size(-1)
+        pad_amount = max(0, length - L_out)
+        if pad_amount > 0:
+            out = torch.nn.functional.pad(out, (0, pad_amount))
+
+        return out.contiguous()
+
+    @torch.jit.ignore
+    def _forward_impl(
+        self, waveform: torch.Tensor, length: Optional[int] = None
+    ) -> torch.Tensor:
+        """Original forward implementation for non-JIT execution"""
         # Add shape validation
         assert waveform.dim() == 3, f"Expected 3D input tensor, got {waveform.dim()}D"
         B, C, L = waveform.size()
 
         # Ensure types are explicit for TorchScript
-        x: torch.FloatTensor = waveform.view(B * C, L)
+        x: torch.Tensor = waveform.view(B * C, L)
 
         # Encode in the time domain -> x_time has shape [(B*C), T, M]
 
@@ -276,10 +357,10 @@ class HSTasNet(nn.Module):
 
         BC, T, M = x_time.size()
         x_time = x_time.view(B, C, T, M)
-        s_time: torch.FloatTensor = x_time.permute(0, 2, 1, 3).reshape(B, T, C * M)
+        s_time: torch.Tensor = x_time.permute(0, 2, 1, 3).reshape(B, T, C * M)
 
         # Forward pass through the time-domain RNN block
-        y_time: torch.FloatTensor = self.time_rnn_in(s_time)
+        y_time: torch.Tensor = self.time_rnn_in(s_time)
 
         # Encode in the frequency domain -> x_spec has shape [(B*C), T, F]
 
@@ -289,13 +370,13 @@ class HSTasNet(nn.Module):
 
         BC, T, F = x_spec.size()
         x_spec = x_spec.view(B, C, T, F)
-        s_spec: torch.FloatTensor = x_spec.permute(0, 2, 1, 3).reshape(B, T, C * F)
+        s_spec: torch.Tensor = x_spec.permute(0, 2, 1, 3).reshape(B, T, C * F)
 
         # Forward pass through the frequency-domain RNN block
-        y_spec: torch.FloatTensor = self.spec_rnn_in(s_spec)
+        y_spec: torch.Tensor = self.spec_rnn_in(s_spec)
 
         # Concatenate time & frequency features -> shape [B, T, 2*H]
-        y: torch.FloatTensor = torch.cat((y_time, y_spec), dim=2)
+        y: torch.Tensor = torch.cat((y_time, y_spec), dim=2)
 
         # The "hybrid RNN" merges the two feature streams (Section 3.3)
         y = self.hybrid_rnn(y)
@@ -306,16 +387,16 @@ class HSTasNet(nn.Module):
 
         # Additional RNN + skip-connection in time domain
         y_time = self.time_rnn_out(y_time)  # [B, T, H]
-        s_time_fc: torch.FloatTensor = self.time_skip_fc(s_time)  # [B, T, H] skip
+        s_time_fc: torch.Tensor = self.time_skip_fc(s_time)  # [B, T, H] skip
         y_time = y_time + s_time_fc  # Combine skip and RNN output
 
         # Additional RNN + skip-connection in frequency domain
         y_spec = self.spec_rnn_out(y_spec)  # [B, T, H]
-        s_spec_fc: torch.FloatTensor = self.spec_skip_fc(s_spec)  # [B, T, H] skip
+        s_spec_fc: torch.Tensor = self.spec_skip_fc(s_spec)  # [B, T, H] skip
         y_spec = y_spec + s_spec_fc  # Combine skip and RNN output
 
         # Time-domain mask estimation -> shape [B, T, S*C*M], then rearrange
-        m_time: torch.FloatTensor = self.time_mask_fc(y_time)
+        m_time: torch.Tensor = self.time_mask_fc(y_time)
         S: int = self.num_sources
         m_time = m_time.view(B, T, S, C, M)  # [B, T, S, C, M]
         m_time = m_time.permute(0, 2, 3, 1, 4)  # [B, S, C, T, M]
@@ -423,7 +504,7 @@ if __name__ == "__main__":
     C: int = 2
     L: int = 100000
     S: int = 4
-    x: torch.FloatTensor = torch.randn(B, C, L, device=DEVICE)  # Random input
+    x: torch.Tensor = torch.randn(B, C, L, device=DEVICE)  # Random input
     print(f"{x.size() = }")  # Debug print
 
     # Instantiate the model, as described in Section 3 for real-time separation

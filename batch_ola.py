@@ -20,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 def overlap_add_separation(
     model, mix, sample_rate, chunk, overlap, device=None, num_sources=4, batch_size=None
 ):
-
     start = time.perf_counter()
     chunk_len = int(sample_rate * chunk)
     overlap_len = int(sample_rate * overlap)
@@ -130,16 +129,20 @@ def main():
     args = get_args()
 
     # Load model using utils function
-    model, config = get_model_from_config(args.model_type, args.config_path)
+    model, config = get_model_from_config(
+        args.model_type, args.config_path, args.device
+    )
 
     # Load weights
     if args.model_path:
-        load_not_compatible_weights(model, args.model_path)
+        # load the weights
+        model.load_state_dict(torch.load(args.model_path, map_location=args.device))
+
         model = model.to(args.device)
         model.eval()
 
     # Rest of processing remains the same
-    mix, sr = torchaudio.load(args.input_audio)
+    mix, sr = torchaudio.load(str(args.input_audio))
     mix = mix.to(args.device)
     mix = mix.unsqueeze(0)
 

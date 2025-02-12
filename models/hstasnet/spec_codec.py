@@ -59,9 +59,7 @@ class SpecEncoder(nn.Module):
             center=False,
         ).to(device)
 
-    def forward(
-        self, waveform: torch.FloatTensor
-    ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+    def forward(self, waveform: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass: Takes a batch of waveforms [B, L] and returns:
           spec_magn: [B, T, F] magnitude
@@ -134,10 +132,10 @@ class SpecDecoder(nn.Module):
 
     def forward(
         self,
-        spec_magn: torch.FloatTensor,
-        spec_angl: torch.FloatTensor,
+        spec_magn: torch.Tensor,
+        spec_angl: torch.Tensor,
         waveform_length: Optional[int] = None,
-    ) -> torch.FloatTensor:
+    ) -> torch.Tensor:
         """
         Forward pass:
           spec_magn: [B, T, F] magnitude
@@ -164,15 +162,15 @@ if __name__ == "__main__":
     B: int = 10
     C: int = 2
     L: int = 500000
-    x: torch.FloatTensor = torch.randn(B, L)  # [10, 500000]
+    x: torch.Tensor = torch.randn(B, L)  # [10, 500000]
     print(f"Input shape: {x.size()}")
 
     # Instantiate the spectrogram encoder
     encoder: SpecEncoder = SpecEncoder(window="hamming")
 
     # Encode to magnitude & angle
-    y_magn: torch.FloatTensor
-    y_angl: torch.FloatTensor
+    y_magn: torch.Tensor
+    y_angl: torch.Tensor
     y_magn, y_angl = encoder(x)
     print(f"Magnitude shape: {y_magn.size()}")
 
@@ -180,7 +178,7 @@ if __name__ == "__main__":
     decoder: SpecDecoder = SpecDecoder(window="hamming")
 
     # Decode back to waveform
-    z: torch.FloatTensor = decoder(y_magn, y_angl, waveform_length=None)
+    z: torch.Tensor = decoder(y_magn, y_angl, waveform_length=None)
     print(f"Decoded shape: {z.size()}")
 
     # Compare a short slice of input & output

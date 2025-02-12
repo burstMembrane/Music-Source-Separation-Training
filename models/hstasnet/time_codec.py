@@ -32,9 +32,7 @@ class TimeEncoder(nn.Module):
         self.relu = ff.relu
         self.sigmoid = torch.sigmoid
 
-    def forward(
-        self, waveform: torch.FloatTensor
-    ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+    def forward(self, waveform: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass:
         waveform: [B, L], where B=batch, L=samples per batch entry.
@@ -80,8 +78,8 @@ class TimeDecoder(nn.Module):
 
     def forward(
         self,
-        waveform_encoding: torch.FloatTensor,
-        waveform_norm: torch.FloatTensor,
+        waveform_encoding: torch.Tensor,
+        waveform_norm: torch.Tensor,
         waveform_length: Optional[int] = 0,
     ):
         """
@@ -115,7 +113,7 @@ class TimeDecoder(nn.Module):
         return x
 
 
-def overlap_add(frames: torch.FloatTensor, overlap_ratio: int = 2) -> torch.FloatTensor:
+def overlap_add(frames: torch.Tensor, overlap_ratio: int = 2) -> torch.Tensor:
     """
     Combine overlapping frames to reconstruct time-domain signals.
 

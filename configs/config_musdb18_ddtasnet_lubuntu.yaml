@@ -17,7 +17,11 @@ model:
   rnn_hidden_size: 512
   
 training:
-  batch_size: 24    
+  # have to change this to account for multift loss
+  batch_size: 24  
+  # batch_size: 8
+  # compensate with grad accum
+  # gradient_accumulation_steps: 4
   num_epochs: 200
   num_steps: 1000
   # start high and then ramp down

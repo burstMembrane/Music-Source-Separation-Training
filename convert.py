@@ -72,7 +72,16 @@ def main():
     model.eval()
     with Halo(text="Converting to TorchScript...", spinner="dots"):
         # Use script instead of trace for better optimization
-        scripted_model = torch.jit.script(model, example_inputs)
+        with torch.jit.optimized_execution(True):
+            scripted_model = torch.jit.script(model, example_inputs)
+            scripted_model = torch.jit.optimize_for_inference(scripted_model)
+
+        # freeze the model
+        scripted_model.eval()
+        for param in scripted_model.parameters():
+            param.requires_grad = False
+        for buffer in scripted_model.buffers():
+            buffer.requires_grad = False
 
     # Verify the model works with example inputs
     with torch.no_grad():

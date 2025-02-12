@@ -78,7 +78,6 @@ def main():
     model.eval()
     with Halo(text="Converting to TorchScript...", spinner="dots"):
         # Use script instead of trace for better optimization
-
         scripted_model = torch.jit.script(model, example_inputs)
 
     # Verify the model works with example inputs

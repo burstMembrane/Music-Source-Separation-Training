@@ -337,29 +337,29 @@ class HSTasNet(nn.Module):
         y_spec = m_spec * x_spec
 
         # # Decode time-domain frames -> shape [(B*S*C), T, M] -> [B*S*C, L]
-        # y_time = y_time.reshape(B * S * C, T, M)
-        # x_norm = (
-        #     x_norm.view(B, 1, C, T, 1).expand(B, S, C, T, 1).reshape(B * S * C, T, 1)
-        # )
-        # z_time = self.time_decoder(y_time, x_norm)  # [B*S*C, L]
-        # z_time = z_time.view(B, S, C, -1)  # [B, S, C, L]
+        y_time = y_time.reshape(B * S * C, T, M)
+        x_norm = (
+            x_norm.view(B, 1, C, T, 1).expand(B, S, C, T, 1).reshape(B * S * C, T, 1)
+        )
+        z_time = self.time_decoder(y_time, x_norm)  # [B*S*C, L]
+        z_time = z_time.view(B, S, C, -1)  # [B, S, C, L]
 
         # # Decode frequency-domain frames -> shape [(B*S*C), T, F] -> [B*S*C, L]
-        # y_spec = y_spec.reshape(B * S * C, T, F)
-        # x_angl = (
-        #     x_angl.view(B, 1, C, T, F).expand(B, S, C, T, F).reshape(B * S * C, T, F)
-        # )
-        # z_spec = self.spec_decoder(y_spec, x_angl)  # [B*S*C, L]
-        # z_spec = z_spec.view(B, S, C, -1)  # [B, S, C, L]
+        y_spec = y_spec.reshape(B * S * C, T, F)
+        x_angl = (
+            x_angl.view(B, 1, C, T, F).expand(B, S, C, T, F).reshape(B * S * C, T, F)
+        )
+        z_spec = self.spec_decoder(y_spec, x_angl)  # [B*S*C, L]
+        z_spec = z_spec.view(B, S, C, -1)  # [B, S, C, L]
 
         # # Sum time + freq domain outputs (Section 3.3: see Fig. 1 in the paper)
-        # out = z_time + z_spec  # [B, S, C, L]
+        out = z_time + z_spec  # [B, S, C, L]
 
         # # Optional zero-padding to match 'length' if specified
-        # if length:
-        #     L_out = out.size(-1)
-        #     out = ff.pad(out, (0, length - L_out), "constant")
-        out = x_time
+        if not torch.jit.is_scripting():
+            if length:
+                L_out = out.size(-1)
+                out = ff.pad(out, (0, length - L_out), "constant")
         return out.contiguous()  # Final shape [B, S, C, L]
 
     @torch.jit.ignore

@@ -83,3 +83,5 @@ separation_results/
 *.ckpt
 inference_*.sh
 train_*.sh
+out/
+sep/

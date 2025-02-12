@@ -11,7 +11,7 @@ import torchaudio
 from torchaudio.transforms import Fade
 from tqdm import tqdm
 
-from utils import get_model_from_config, load_not_compatible_weights
+from utils import get_model_from_config
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 def overlap_add_separation(
     model, mix, sample_rate, chunk, overlap, device=None, num_sources=4, batch_size=None
 ):
-
     start = time.perf_counter()
     chunk_len = int(sample_rate * chunk)
     overlap_len = int(sample_rate * overlap)
@@ -139,22 +138,15 @@ def main():
 
     # Load weights
     if args.model_path:
-        load_not_compatible_weights(model, args.model_path)
-        if args.use_accelerate:
-            from accelerate import Accelerator
+        # load the weights
+        model.load_state_dict(torch.load(args.model_path, map_location=args.device))
 
-            accelerator = Accelerator()
-            model = accelerator.prepare(model)
-        else:
-            model = model.to(args.device)
+        model = model.to(args.device)
         model.eval()
 
     # Rest of processing remains the same
-    mix, sr = torchaudio.load(args.input_audio)
-    if args.use_accelerate:
-        mix = accelerator.prepare(mix)
-    else:
-        mix = mix.to(args.device)
+    mix, sr = torchaudio.load(str(args.input_audio))
+    mix = mix.to(args.device)
     mix = mix.unsqueeze(0)
 
     output = overlap_add_separation(

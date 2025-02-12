@@ -1,20 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as ff
+from torch import Tensor
+
 
 class Memory(nn.Module):
     """
     A GRU-based memory module (Section 3.2 of the paper mentions LSTM/GRU RNNs).
     This implementation uses two GRU layers in sequence, with a skip-connection
-    around the second GRU’s output (similar to an identity residual).
+    around the second GRU's output (similar to an identity residual).
     """
 
-    def __init__(self, 
-                 input_size, 
-                 hidden_size, 
-                 num_layers=1,
-                 dropout=0.0,
-                 device=torch.device('cpu')):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        dropout: float = 0.0,
+        device: torch.device = torch.device("cpu"),
+    ) -> None:
         """
         Args:
           input_size  : Dimensionality of the input features
@@ -36,7 +40,7 @@ class Memory(nn.Module):
             num_layers=num_layers,
             batch_first=True,  # x shape: (B, T, H_in)
             dropout=dropout,
-            device=device
+            device=device,
         )
 
         # Second GRU block, receives hidden_size from rnn1
@@ -46,10 +50,10 @@ class Memory(nn.Module):
             num_layers=num_layers,
             batch_first=True,
             dropout=dropout,
-            device=device
+            device=device,
         )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         """
         Forward pass:
           x: [B, T, H_in]  (batch, time, input_size)
@@ -63,24 +67,25 @@ class Memory(nn.Module):
         z, _ = self.rnn2(y)  # shape [B, T, hidden_size]
 
         # 3) Add skip connection around the second GRU
-        z = z + y            # Residual connection -> same shape [B, T, hidden_size]
+        z = z + y  # Residual connection -> same shape [B, T, hidden_size]
 
         return z
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Example usage
-    B = 80      # batch size
-    T = 4       # time steps
-    H_in = 1500 # input_size
-    H_out = 1000 # hidden_size
+    B: int = 80  # batch size
+    T: int = 4  # time steps
+    H_in: int = 1500  # input_size
+    H_out: int = 1000  # hidden_size
 
     # Random input: shape [B, T, H_in]
-    x = torch.randn(B, T, H_in)
-    print(f'Input shape x: {x.size()}')
+    x: Tensor = torch.randn(B, T, H_in)
+    print(f"Input shape x: {x.size()}")
 
     # Instantiate the Memory module
-    memory = Memory(input_size=H_in, hidden_size=H_out)
+    memory: Memory = Memory(input_size=H_in, hidden_size=H_out)
 
     # Forward pass
-    y = memory(x)
-    print(f'Output shape y: {y.size()}')
+    y: Tensor = memory(x)
+    print(f"Output shape y: {y.size()}")

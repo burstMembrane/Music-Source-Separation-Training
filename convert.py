@@ -1,8 +1,7 @@
 import argparse
 import logging
-
-import torch
 from halo import Halo
+import torch
 
 from utils import get_model_from_config
 
@@ -26,13 +25,22 @@ def validate_model_layers(model, device):
         if buffer.device != device:
             logger.warning(f"Buffer {name} is on {buffer.device}, expected {device}")
         if buffer.dtype != torch.float32:
-            logger.warning(f"Buffer {name} is {buffer.dtype}, expected float32")
+            logger.warning(f"Converting buffer from {buffer.dtype} to float32")
+            buffer.data = buffer.data.to(torch.float32)
+
+    # Final consistency check
+    assert all(p.device == device for p in model.parameters()), (
+        "Some parameters are still on incorrect device!"
+    )
+    assert all(b.device == device for b in model.buffers()), (
+        "Some buffers are still on incorrect device!"
+    )
 
     return model
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Converts a  model to torchscript.")
+    parser = argparse.ArgumentParser(description="Converts a model to torchscript.")
 
     parser.add_argument(
         "--checkpoint", type=str, required=True, help="Path to the model ckpt."
@@ -40,11 +48,6 @@ def main():
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--device", type=str, default="cpu", help="Device to run on.")
-    parser.add_argument(
-        "--optimize",
-        action="store_true",
-        help="Apply optimizations and freeze the model before exporting to TorchScript.",
-    )
 
     args = parser.parse_args()
     device = torch.device(args.device)
@@ -65,32 +68,32 @@ def main():
     )
     example_inputs = torch.randn(B, C, L, device=device, dtype=torch.float32).to(device)
 
-    # Apply optimizations and freeze the model if --optimize is set
-    if args.optimize:
-        logger.info("Applying optimizations and freezing the model...")
-        try:
-            # Try scripting first
-            model = torch.jit.script(model)
-            model = torch.jit.optimize_for_inference(model)
-            model = torch.jit.freeze(model)
-            logger.info("Successfully applied scripting optimizations.")
-        except Exception as e:
-            logger.warning(f"Failed to apply scripting optimizations: {str(e)}")
-            logger.info("Falling back to trace-only optimization...")
-
-    # Convert model to TorchScript using trace
+    # Convert model to TorchScript using script instead of trace
     model.eval()
-    with Halo(text="Tracing to TorchScript...", spinner="dots"):
-        scripted_model = torch.jit.trace(model, example_inputs)
+    with Halo(text="Converting to TorchScript...", spinner="dots"):
+        # Use script instead of trace for better optimization
+        with torch.jit.optimized_execution(True):
+            scripted_model = torch.jit.script(model, example_inputs)
+            scripted_model = torch.jit.optimize_for_inference(scripted_model)
 
-    # add the audio.chunk_size to the model name
+        # freeze the model
+        scripted_model.eval()
+        for param in scripted_model.parameters():
+            param.requires_grad = False
+        for buffer in scripted_model.buffers():
+            buffer.requires_grad = False
+
+    # Verify the model works with example inputs
+    with torch.no_grad():
+        scripted_model(example_inputs)  # Warm-up run
+
     out_name = f"{args.model}_cs_{config.audio.chunk_size}.pt"
-    # Save the TorchScript model
-    scripted_model.save(out_name)
+    # Save the TorchScript model with optimization_level=3
+    scripted_model.save(out_name, _extra_files={"model_config": str(config)})
 
     logger.info(f"Scripted model saved to {out_name}")
+    # TODO: test the saved model with the example input and print output shape
 
-    # Test the saved model
     ts_model = torch.jit.load(out_name)
     ts_model.eval()
 
@@ -100,9 +103,9 @@ def main():
 
         original_output = model(example_inputs)
         scripted_output = ts_model(example_inputs)
-        assert torch.allclose(
-            original_output, scripted_output, atol=1e-5
-        ), "TorchScript output does not match original model!"
+        assert torch.allclose(original_output, scripted_output, atol=1e-5), (
+            "TorchScript output does not match original model!"
+        )
         logger.info("TorchScript output matches original model.")
 
 

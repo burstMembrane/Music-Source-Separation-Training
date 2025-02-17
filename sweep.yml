@@ -12,6 +12,10 @@ parameters:
     value: "configs/config_musdb18_hstasnet_lg.yaml"
   results_path:
     value: "results/sweep_hstasnet"
+  train_subset: 
+    value: 1
+  valid_subset: 
+    value: 1
   metrics:
     value: ["sdr"]
   metric_for_scheduler:

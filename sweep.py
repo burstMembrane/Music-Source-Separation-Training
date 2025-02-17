@@ -7,6 +7,7 @@ import yaml
 import auraloss
 import torch
 from accelerate import Accelerator
+import torch.nn.functional as F
 from torch.optim import SGD, Adam, AdamW, RAdam, RMSprop
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
@@ -23,6 +24,7 @@ from utils import (
     load_not_compatible_weights,
     prefer_target_instrument,
 )
+import random
 
 warnings.filterwarnings("ignore")
 
@@ -64,6 +66,15 @@ def compute_loss(model, x, y, args, config, loss_multistft=None):
     return loss
 
 
+def sample_subset(dataset, subset_fraction):
+    """
+    Randomly samples a subset of the dataset.
+    """
+    subset_size = int(len(dataset) * subset_fraction)
+    indices = random.sample(range(len(dataset)), subset_size)
+    return torch.utils.data.Subset(dataset, indices)
+
+
 def train_model():
     # Initialize WandB
     wandb.init()
@@ -103,6 +114,9 @@ def train_model():
         dataset_type=sweep_config.dataset_type,
         verbose=accelerator.is_main_process,
     )
+    # Restrict dataset size for quick iterations
+    if sweep_config.train_subset < 1.0:
+        trainset = sample_subset(trainset, sweep_config.train_subset)
 
     train_loader = DataLoader(
         trainset,
@@ -113,7 +127,10 @@ def train_model():
     )
 
     validset = MSSValidationDataset(sweep_config)
-    valid_dataset_length = len(validset)
+
+    if sweep_config.valid_subset < 1.0:
+        validset = sample_subset(validset, sweep_config.valid_subset)
+        valid_dataset_length = len(validset)
 
     valid_loader = DataLoader(
         validset,

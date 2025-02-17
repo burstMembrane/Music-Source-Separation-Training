@@ -1,7 +1,7 @@
 import argparse
+import json
 import logging
 import time
-import json
 from datetime import datetime
 
 import torch
@@ -61,11 +61,11 @@ for device in devices_to_test:
 
     model_args = config.get("model", {})
     SAMPLE_RATE = config.get("sample_rate", 44100)
-    DURATIONS = [1, 10, 30] if "sample_rate" in config else [1]
+    DURATIONS = [1, 10, 30, 360] if "sample_rate" in config else [1]
 
     # Warm-up runs
     logger.info("Running warm-up passes...")
-    for _ in range(5):
+    for _ in range(1):
         _ = model(torch.randn(1, 2, SAMPLE_RATE, device=device))
 
     # Run latency tests

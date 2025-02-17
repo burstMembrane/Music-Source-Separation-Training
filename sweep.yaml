@@ -1,0 +1,78 @@
+program: sweep.py
+method: bayes # Using Bayesian optimization for efficient parameter search
+metric:
+  name: sdr_avg # Signal-to-Distortion Ratio average across all instruments
+  goal: maximize
+
+parameters:
+  # Fixed parameters from base config
+  model_type:
+    value: "hstasnet"
+  config_path:
+    value: "configs/config_musdb18_hstasnet_lg.yaml"
+  results_path:
+    value: "results/sweep_hstasnet"
+  metrics:
+    value: ["sdr"]
+  metric_for_scheduler:
+    value: "sdr"
+  # Sweep parameters
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 1e-3
+
+  optimizer:
+    values: ["adamw", "adam", "radam"]
+
+  batch_size:
+    values: [16, 24, 32]
+
+  # Model-specific parameters to sweep
+  rnn_hidden_size:
+    values: [256, 512, 768]
+
+  # Training parameters to sweep
+  patience:
+    values: [3, 5, 7]
+
+  reduce_factor:
+    values: [0.8, 0.9, 0.95]
+
+  grad_clip:
+    values: [3.0, 5.0, 7.0]
+
+  # Fixed parameters from base config
+  num_epochs:
+    value: 250
+  seed:
+    value: 42
+  read_metadata_procs:
+    value: 4
+  num_workers:
+    value: 4
+  # Audio parameters (fixed)
+  chunk_size:
+    value: 262144
+  hop_length:
+    value: 512
+  n_fft:
+    value: 1024
+  pin_memory:
+    value: false
+  # Loss parameters
+  use_multistft_loss:
+    value: false
+  use_mse_loss:
+    value: false
+  use_l1_loss:
+    value: true
+  start_check_point:
+    value: "./results/model_hstasnet_ep_0_sdr_4.8025.ckpt"
+  dataset_type:
+    value: 1
+  # Required paths
+  data_path:
+    value: "/workspace/musdbhq/train/"
+  valid_path:
+    value: ["/workspace/musdbhq/test/"]

@@ -38,11 +38,12 @@ models:
     checkpoint: "musdb_models/model_bs_roformer_ep_17_sdr_9.6568.ckpt"
     trace: true
     out_dir: "musdb_models/torchscript"
-  - name: "htdemucs"
-    config: "musdb_models/config_musdb18_htdemucs.yaml"
-    checkpoint: "musdb_models/model_htdemucs4_sdr_9.16.ckpt"
-    trace: true
-    out_dir: "musdb_models/torchscript"
+  # - name: "htdemucs"
+  #   config: "musdb_models/config_musdb18_htdemucs.yaml"
+  #   checkpoint: "musdb_models/model_htdemucs4_sdr_9.16.ckpt"
+  #   trace: true
+  #   out_dir: "musdb_models/torchscript"
+
   - name: "hstasnet"
     config: "musdb_models/config_musdb18_hstasnet_lg.yaml"
     checkpoint: "musdb_models/model_hstasnet_ep_4_sdr_5.0297.ckpt"

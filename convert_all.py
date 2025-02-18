@@ -4,6 +4,7 @@ import yaml
 from pathlib import Path
 import subprocess
 import sys
+import gc
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -24,13 +25,14 @@ def convert_model(model_config, device):
         "--config", model_config["config"],
         "--checkpoint", model_config["checkpoint"],
         "--device", device,
-       "--trace" if model_config["trace"] else "",
+        "--trace" if model_config["trace"] else "",
         "--out_dir", model_config["out_dir"]
             ]
     
     logger.info(f"Converting model: {model_config['name']}")
     logger.info(f"Command: {' '.join(cmd)}")
-    
+    # remove double spaces
+    cmd = [x for x in cmd if x]
     try:
         subprocess.run(cmd, check=True)
         logger.info(f"Successfully converted {model_config['name']}")
@@ -70,6 +72,8 @@ def main():
     
     for idx, model_config in enumerate(config["models"], 1):
         logger.info(f"\nProcessing model {idx}/{total_models}")
+        # clear system memory
+        gc.collect()
         if convert_model(model_config, args.device):
             success_count += 1
     

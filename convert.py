@@ -2,7 +2,7 @@ import argparse
 import logging
 from halo import Halo
 import torch
-
+from pathlib import Path
 from utils import get_model_from_config
 
 logger = logging.getLogger(__name__)
@@ -12,27 +12,35 @@ logging.basicConfig(level=logging.INFO)
 def validate_model_layers(model, device):
     """Validate that all layers in the model are on the correct device and dtype."""
     logger.info(f"Validating model layers on {device}")
-
     model.to(device, dtype=torch.float32)  # Convert entire model at once
 
     for name, param in model.named_parameters():
-        if param.device != device:
-            logger.warning(f"Parameter {name} is on {param.device}, expected {device}")
+        if str(param.device.type) != str(device):
+            param.data = param.data.to(device)
+            logger.warning(f"{name}={param.device}!={device}")
         if param.dtype != torch.float32:
-            logger.warning(f"Parameter {name} is {param.dtype}, expected float32")
+            logger.warning(
+                f"Parameter {name} is {param.dtype}, expected float32")
+    for p in model.parameters():
+        p.requires_grad = False
+        if str(p.device.type) != str(device):
+            logger.warning(
+                f"Parameter {p} is on {p.device}, expected {device}")
 
     for name, buffer in model.named_buffers():
-        if buffer.device != device:
-            logger.warning(f"Buffer {name} is on {buffer.device}, expected {device}")
+        if str(buffer.device.type) != str(device):
+            buffer.data = buffer.data.to(device)
+            logger.warning(
+                f"Buffer {name} is on {buffer.device}, expected {device}")
         if buffer.dtype != torch.float32:
             logger.warning(f"Converting buffer from {buffer.dtype} to float32")
             buffer.data = buffer.data.to(torch.float32)
 
     # Final consistency check
-    assert all(p.device == device for p in model.parameters()), (
+    assert all(str(p.device.type) == str(device) for p in model.parameters()), (
         "Some parameters are still on incorrect device!"
     )
-    assert all(b.device == device for b in model.buffers()), (
+    assert all(str(b.device.type) == str(device) for b in model.buffers()), (
         "Some buffers are still on incorrect device!"
     )
 
@@ -40,7 +48,8 @@ def validate_model_layers(model, device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Converts a model to torchscript.")
+    parser = argparse.ArgumentParser(
+        description="Converts a model to torchscript.")
 
     parser.add_argument(
         "--checkpoint", type=str, required=True, help="Path to the model ckpt."
@@ -52,41 +61,48 @@ def main():
     parser.add_argument("--out_dir", type=str, default=".", help="Output directory.")
     args = parser.parse_args()
     device = torch.device(args.device)
-
+    config_basename = Path(args.config).stem
     # Initialize model from config
     model, config = get_model_from_config(args.model, args.config)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
-    model = model.to(device)
+    model = model.to(device, dtype=torch.float32)
     model.eval()
     logger.info(f"Model loaded from {args.model} to {device}")
-    model = validate_model_layers(model, device)
-
+    # model = validate_model_layers(model, device)
+    model = model.to(device)
     # Example input
+    channels = config.audio.num_channels if hasattr(config.audio, "num_channels") else 2   
     B, C, L = (
         config.inference.batch_size,
-        config.audio.num_channels,
+        channels,
         config.audio.chunk_size,
     )
-    example_inputs = torch.randn(B, C, L, device=device, dtype=torch.float32).to(device)
+    example_inputs = torch.randn(
+        B, C, L, device=device, dtype=torch.float32).to(device)
 
     # Convert model to TorchScript using script instead of trace
     model.eval()
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = False
+        # deterministic=True is slower but ensures reproducibility
+        torch.backends.cudnn.deterministic = True
     with Halo(text="Converting to TorchScript...", spinner="dots"):
         # Use script instead of trace for better optimization
-
-        if not args.trace:
-            with torch.jit.optimized_execution(True):
-                scripted_model = torch.jit.script(model, example_inputs)
-                scripted_model = torch.jit.optimize_for_inference(scripted_model)
-        else:
-            with torch.jit.optimized_execution(True):
-                scripted_model = torch.jit.trace(model, example_inputs)
+        with torch.no_grad():
+            if not args.trace:
+                with torch.jit.optimized_execution(True):
+                    scripted_model = torch.jit.script(model, example_inputs)
+                    scripted_model = torch.jit.optimize_for_inference(scripted_model)
+            else:
+                with torch.jit.optimized_execution(True):
+                    scripted_model = torch.jit.trace(model, example_inputs)
 
     # Verify the model works with example inputs
-    with torch.no_grad():
+    with torch.inference_mode():
+        scripted_model.eval()
         scripted_model(example_inputs)  # Warm-up run
 
-    out_name = f"{args.out_dir}/{args.model}_cs_{config.audio.chunk_size}.pt"
+    out_name = f"{args.out_dir}/{args.model}_cs_{config.audio.chunk_size}_{device}_{config_basename}.pt"
     # Save the TorchScript model with optimization_level=3
     scripted_model.save(out_name, _extra_files={"model_config": str(config)})
 

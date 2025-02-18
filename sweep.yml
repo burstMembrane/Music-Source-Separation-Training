@@ -13,9 +13,9 @@ parameters:
   results_path:
     value: "results/sweep_hstasnet"
   train_subset: 
-    value: 1
+    value: 0.1
   valid_subset: 
-    value: 1
+    value: 1.0
   metrics:
     value: ["sdr"]
   metric_for_scheduler:
@@ -48,7 +48,7 @@ parameters:
   
   # Fixed parameters from base config
   num_epochs:
-    value: 250
+    value: 10
   seed:
     value: 42
   read_metadata_procs:
@@ -77,6 +77,6 @@ parameters:
     value: 1
   # Required paths
   data_path:
-    value: "/workspace/musdbhq/train/"
+    value: "/home/liam/.datasets/moisesdb/train/"
   valid_path:
-    value: ["/workspace/musdbhq/test/"]
+    value: ["/home/liam/.datasets/moisesdb/test/"]

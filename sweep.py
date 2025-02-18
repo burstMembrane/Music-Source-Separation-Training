@@ -134,8 +134,8 @@ def train_model():
         
     if sweep_config.valid_subset < 1.0:
         validset = sample_subset(validset, sweep_config.valid_subset)
-        valid_dataset_length = len(validset)
 
+    valid_dataset_length = len(validset)
     valid_loader = DataLoader(
         validset,
         batch_size=1,

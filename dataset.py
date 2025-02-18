@@ -686,7 +686,6 @@ class MSSDataset(torch.utils.data.Dataset):
                     source = board(source, 44100)
                     applied_augs.append("pedalboard_mp3_compressor")
 
-        print(applied_augs)
         return source
 
     def __getitem__(self, index):

@@ -46,9 +46,8 @@ parameters:
   grad_clip:
     values: [3.0, 5.0, 7.0]
 
-  # Fixed parameters from base config
   num_epochs:
-    value: 250
+    value: 10
   seed:
     value: 42
   read_metadata_procs:

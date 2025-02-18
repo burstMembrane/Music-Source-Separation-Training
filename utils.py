@@ -528,8 +528,13 @@ def load_not_compatible_weights(
         verbose: If True, prints detailed information about matching and mismatched layers.
     """
 
+    # Modified load with safe_globals
+    with torch.serialization.safe_globals([HTDemucs]):
+        old_model = torch.load(
+            weights, map_location="cpu", weights_only=False
+        )  # Changed to False
+
     new_model = model.state_dict()
-    old_model = torch.load(weights)
     if "state" in old_model:
         # Fix for htdemucs weights loading
         old_model = old_model["state"]

@@ -1,4 +1,5 @@
 import torch  # Main PyTorch library for tensors
+
 import torch.nn as nn  # Neural network layers (e.g. Linear, LSTM, etc.)
 import torch.nn.functional as ff  # Functional interface for common operations
 from typing import Optional
@@ -44,7 +45,8 @@ class HSTasNet(nn.Module):
         self.time_ftr_size: int = (
             time_ftr_size  # Dimensionality of time-domain features
         )
-        self.spec_win_size: int = spec_win_size  # Window size for frequency-domain STFT
+        # Window size for frequency-domain STFT
+        self.spec_win_size: int = spec_win_size
         self.spec_hop_size: int = spec_hop_size  # Hop size for frequency-domain STFT
         self.spec_fft_size: int = spec_fft_size  # FFT size (e.g., 1024 points)
         self.rnn_hidden_size: int = rnn_hidden_size  # Hidden units for LSTMs
@@ -316,10 +318,12 @@ class HSTasNet(nn.Module):
 
         # Expand norms for decoding
         x_norm_exp = (
-            x_norm.view(B, 1, C, T, 1).expand(B, S, C, T, 1).reshape(B * S * C, T, 1)
+            x_norm.view(B, 1, C, T, 1).expand(
+                B, S, C, T, 1).reshape(B * S * C, T, 1)
         )
         x_angl_exp = (
-            x_angl.view(B, 1, C, T, F).expand(B, S, C, T, F).reshape(B * S * C, T, F)
+            x_angl.view(B, 1, C, T, F).expand(
+                B, S, C, T, F).reshape(B * S * C, T, F)
         )
 
         # Parallel decoding
@@ -343,7 +347,8 @@ class HSTasNet(nn.Module):
     ) -> torch.Tensor:
         """Original forward implementation for non-JIT execution"""
         # Add shape validation
-        assert waveform.dim() == 3, f"Expected 3D input tensor, got {waveform.dim()}D"
+        assert waveform.dim(
+        ) == 3, f"Expected 3D input tensor, got {waveform.dim()}D"
         B, C, L = waveform.size()
 
         # Ensure types are explicit for TorchScript
@@ -420,7 +425,8 @@ class HSTasNet(nn.Module):
         # # Decode time-domain frames -> shape [(B*S*C), T, M] -> [B*S*C, L]
         y_time = y_time.reshape(B * S * C, T, M)
         x_norm = (
-            x_norm.view(B, 1, C, T, 1).expand(B, S, C, T, 1).reshape(B * S * C, T, 1)
+            x_norm.view(B, 1, C, T, 1).expand(
+                B, S, C, T, 1).reshape(B * S * C, T, 1)
         )
         z_time = self.time_decoder(y_time, x_norm)  # [B*S*C, L]
         z_time = z_time.view(B, S, C, -1)  # [B, S, C, L]
@@ -428,7 +434,8 @@ class HSTasNet(nn.Module):
         # # Decode frequency-domain frames -> shape [(B*S*C), T, F] -> [B*S*C, L]
         y_spec = y_spec.reshape(B * S * C, T, F)
         x_angl = (
-            x_angl.view(B, 1, C, T, F).expand(B, S, C, T, F).reshape(B * S * C, T, F)
+            x_angl.view(B, 1, C, T, F).expand(
+                B, S, C, T, F).reshape(B * S * C, T, F)
         )
         z_spec = self.spec_decoder(y_spec, x_angl)  # [B*S*C, L]
         z_spec = z_spec.view(B, S, C, -1)  # [B, S, C, L]

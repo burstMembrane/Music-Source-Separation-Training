@@ -1,0 +1,50 @@
+
+models:
+  - name: "mdx23c"
+    config: "musdb_models/config_musdb18_mdx23c.yaml"
+    checkpoint: "musdb_models/model_mdx23c_ep_168_sdr_7.0207.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+  
+  - name: "bs_mamba2"
+    config: "musdb_models/config_musdb18_bs_mamba2.yaml"
+    checkpoint: "musdb_models/model_bs_mamba2_ep_11_sdr_6.8723.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+
+  - name: "scnet"
+    config: "musdb_models/config_musdb18_scnet.yaml"
+    checkpoint: "musdb_models/scnet_checkpoint_musdb18.ckpt"
+    trace: true   
+    out_dir: "musdb_models/torchscript"
+  - name: "scnet"
+    config: "musdb_models/config_musdb18_scnet_large.yaml"
+    checkpoint: "musdb_models/model_scnet_sdr_9.3244.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+  - name: "scnet"
+    config: "musdb_models/config_musdb18_scnet_large_starrytong.yaml"
+    checkpoint: "musdb_models/SCNet-large_starrytong_fixed.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+  - name: "scnet"
+    config: "musdb_models/config_musdb18_scnet_xl.yaml"
+    checkpoint: "musdb_models/model_scnet_ep_54_sdr_9.8051.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+    
+  - name: "bs_roformer"
+    config: "musdb_models/config_bs_roformer_384_8_2_485100.yaml"
+    checkpoint: "musdb_models/model_bs_roformer_ep_17_sdr_9.6568.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+  - name: "htdemucs"
+    config: "musdb_models/config_musdb18_htdemucs.yaml"
+    checkpoint: "musdb_models/model_htdemucs4_sdr_9.16.ckpt"
+    trace: true
+    out_dir: "musdb_models/torchscript"
+  - name: "hstasnet"
+    config: "musdb_models/config_musdb18_hstasnet_lg.yaml"
+    checkpoint: "musdb_models/model_hstasnet_ep_4_sdr_5.0297.ckpt"
+    trace: false
+    out_dir: "musdb_models/torchscript"

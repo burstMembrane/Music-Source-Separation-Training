@@ -46,9 +46,10 @@ def main():
         "--checkpoint", type=str, required=True, help="Path to the model ckpt."
     )
     parser.add_argument("--model", type=str, required=True)
-    parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--config",     type=str, required=True)
     parser.add_argument("--device", type=str, default="cpu", help="Device to run on.")
-
+    parser.add_argument("--trace", action="store_true", help="Use trace instead of script.")
+    parser.add_argument("--out_dir", type=str, default=".", help="Output directory.")
     args = parser.parse_args()
     device = torch.device(args.device)
 
@@ -72,27 +73,24 @@ def main():
     model.eval()
     with Halo(text="Converting to TorchScript...", spinner="dots"):
         # Use script instead of trace for better optimization
-        with torch.jit.optimized_execution(True):
-            scripted_model = torch.jit.script(model, example_inputs)
-            scripted_model = torch.jit.optimize_for_inference(scripted_model)
 
-        # freeze the model
-        scripted_model.eval()
-        for param in scripted_model.parameters():
-            param.requires_grad = False
-        for buffer in scripted_model.buffers():
-            buffer.requires_grad = False
+        if not args.trace:
+            with torch.jit.optimized_execution(True):
+                scripted_model = torch.jit.script(model, example_inputs)
+                scripted_model = torch.jit.optimize_for_inference(scripted_model)
+        else:
+            with torch.jit.optimized_execution(True):
+                scripted_model = torch.jit.trace(model, example_inputs)
 
     # Verify the model works with example inputs
     with torch.no_grad():
         scripted_model(example_inputs)  # Warm-up run
 
-    out_name = f"{args.model}_cs_{config.audio.chunk_size}.pt"
+    out_name = f"{args.out_dir}/{args.model}_cs_{config.audio.chunk_size}.pt"
     # Save the TorchScript model with optimization_level=3
     scripted_model.save(out_name, _extra_files={"model_config": str(config)})
 
     logger.info(f"Scripted model saved to {out_name}")
-    # TODO: test the saved model with the example input and print output shape
 
     ts_model = torch.jit.load(out_name)
     ts_model.eval()

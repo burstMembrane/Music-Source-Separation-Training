@@ -9,6 +9,7 @@ declare -A checkpoints=(
   ["scnet_large_starrytong"]="musdb_models/SCNet-large_starrytong_fixed.ckpt"
   ["scnet_xl"]="musdb_models/model_scnet_ep_54_sdr_9.8051.ckpt"
   ["bs_roformer"]="musdb_models/model_bs_roformer_ep_17_sdr_9.6568.ckpt"
+  ["hstasne"]
 )
 
 declare -A configs=(

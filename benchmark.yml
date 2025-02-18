@@ -1,0 +1,70 @@
+validation:
+  # name of the validation dataset
+  name: musdb18
+  # use a subset of the validation dataset
+  subset_ratio: 0.1
+  # path to the validation dataset
+  path: /mnt/BACKUP/datasets/musdb18hq/test
+  # sample rate of the validation dataset
+  sample_rate: 44100
+  # chunk_length in seconds
+  chunk_length: 10
+
+  # store the validation results
+  store_dir: benchmark_results/wav/
+  # extension of the validation dataset
+  extension: wav
+  # metrics to compute
+  metrics:
+    - sdr
+
+benchmark:
+  # number of warmup runs
+  warmup_runs: 1
+  # number of benchmark runs
+  benchmark_runs: 5
+  durations:
+    - 1
+    - 5
+    - 10
+  devices:
+    - cpu
+    - cuda
+  out_dir: benchmark_results
+models:
+  # - name: "mdx23c"
+  #   config: "musdb_models/config_musdb18_mdx23c.yaml"
+  #   checkpoint: "musdb_models/model_mdx23c_ep_168_sdr_7.0207.ckpt"
+
+  # - name: "bs_mamba2"
+  #   config: "musdb_models/config_musdb18_bs_mamba2.yaml"
+  #   checkpoint: "musdb_models/model_bs_mamba2_ep_11_sdr_6.8723.ckpt"
+
+  # - name: "scnet"
+  #   config: "musdb_models/config_musdb18_scnet.yaml"
+  #   checkpoint: "musdb_models/scnet_checkpoint_musdb18.ckpt"
+    
+  # - name: "scnet"
+  #   config: "musdb_models/config_musdb18_scnet_large.yaml"
+  #   checkpoint: "musdb_models/model_scnet_sdr_9.3244.ckpt"
+    
+  # - name: "scnet"
+  #   config: "musdb_models/config_musdb18_scnet_large_starrytong.yaml"
+  #   checkpoint: "musdb_models/SCNet-large_starrytong_fixed.ckpt"
+    
+  # - name: "scnet"
+  #   config: "musdb_models/config_musdb18_scnet_xl.yaml"
+  #   checkpoint: "musdb_models/model_scnet_ep_54_sdr_9.8051.ckpt"
+    
+  # - name: "bs_roformer"
+  #   config: "musdb_models/config_bs_roformer_384_8_2_485100.yaml"
+  #   checkpoint: "musdb_models/model_bs_roformer_ep_17_sdr_9.6568.ckpt"
+
+  # - name: "htdemucs"
+  #   config: "musdb_models/config_musdb18_htdemucs.yaml"
+  #   checkpoint: "musdb_models/model_htdemucs4_sdr_9.16.ckpt"
+
+  - name: "hstasnet"
+    config: "musdb_models/config_musdb18_hstasnet_lg.yaml"
+    checkpoint: "musdb_models/model_hstasnet_ep_4_sdr_5.0297.ckpt"
+

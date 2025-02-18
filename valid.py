@@ -361,7 +361,8 @@ def valid(
     args,
     config: ConfigDict,
     device: torch.device,
-    verbose: bool = False
+    verbose: bool = False,
+    subset_ratio: float = None
 ) -> dict:
     """
     Validate a trained model on a set of audio mixtures and compute metrics.
@@ -381,6 +382,8 @@ def valid(
         The device (CPU or CUDA) to run the model on.
     verbose : bool, optional
         If True, enables verbose output during processing. Default is False.
+    subset_ratio : float, optional
+        The ratio of the validation dataset to use. Default is None.
 
     Returns:
     -------
@@ -391,15 +394,21 @@ def valid(
     start_time = time.time()
     model.eval().to(device)
 
+
     # dir to save files, if empty no saving
     store_dir = getattr(args, 'store_dir', '')
     # codec to save files
-    if 'extension' in config['inference']:
+    if config.get("inference") and 'extension' in config['inference']:
         extension = config['inference']['extension']
     else:
         extension = getattr(args, 'extension', 'wav')
 
     all_mixtures_path = get_mixture_paths(args, verbose, config, extension)
+    if subset_ratio is not None:
+        original_length = len(all_mixtures_path)
+        all_mixtures_path = all_mixtures_path[:int(len(all_mixtures_path) * subset_ratio)]
+        if verbose:
+            print(f"Using {len(all_mixtures_path)} out of {original_length} mixes for validation")
     all_metrics = process_audio_files(all_mixtures_path, model, args, config, device, verbose, not verbose)
     instruments = prefer_target_instrument(config)
 

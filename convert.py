@@ -2,7 +2,7 @@ import argparse
 import logging
 from halo import Halo
 import torch
-
+from pathlib import Path
 from utils import get_model_from_config
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def main():
     )
     args = parser.parse_args()
     device = torch.device(args.device)
-
+    config_basename = Path(args.config).stem
     # Initialize model from config
     model, config = get_model_from_config(args.model, args.config)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
@@ -76,9 +76,11 @@ def main():
     # model = validate_model_layers(model, device)
 
     # Example input
+    channels = config.audio.num_channels if hasattr(
+        config.audio, "num_channels") else 2
     B, C, L = (
         config.inference.batch_size,
-        config.audio.num_channels,
+        channels,
         config.audio.chunk_size,
     )
     example_inputs = torch.randn(
@@ -86,6 +88,10 @@ def main():
 
     # Convert model to TorchScript using script instead of trace
     model.eval()
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = False
+        # deterministic=True is slower but ensures reproducibility
+        torch.backends.cudnn.deterministic = True
     with Halo(text="Converting to TorchScript...", spinner="dots"):
         # Use script instead of trace for better optimization
 
@@ -111,12 +117,11 @@ def main():
         scripted_model.eval()
         scripted_model(example_inputs)  # Warm-up run
 
-    out_name = f"{args.model}_cs_{config.audio.chunk_size}_{device}.pt"
+    out_name = f"{args.out_dir}/{args.model}_cs_{config.audio.chunk_size}_{device}_{config_basename}.pt"
     # Save the TorchScript model with optimization_level=3
     scripted_model.save(out_name, _extra_files={"model_config": str(config)})
 
     logger.info(f"Scripted model saved to {out_name}")
-    # TODO: test the saved model with the example input and print output shape
 
     ts_model = torch.jit.load(out_name)
     ts_model.eval()

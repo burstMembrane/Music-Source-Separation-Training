@@ -321,6 +321,7 @@ def demix(
     device: torch.device,
     model_type: str,
     pbar: bool = False,
+    verbose: bool = False,
 ) -> Tuple[List[Dict[str, np.ndarray]], np.ndarray]:
     """
     Unified function for audio source separation with support for multiple processing modes.
@@ -365,14 +366,16 @@ def demix(
 
         # Add reflection padding if mix is large and there's a valid border
         if length_init > 2 * border and border > 0:
-            print("Border size: ", border)
-            print("Adding padding to handle edge artifacts")
+            if verbose:
+                print("Border size: ", border)
+                print("Adding padding to handle edge artifacts")
             orig_mix_shape = mix.shape
             mix = nn.functional.pad(mix, (border, border), mode="reflect")
             shape_after_padding = mix.shape
-            print(
-                f"Original mix shape: {orig_mix_shape}, Shape after padding: {shape_after_padding}"
-            )
+            if verbose:
+                print(
+                    f"Original mix shape: {orig_mix_shape}, Shape after padding: {shape_after_padding}"
+                )
 
     batch_size = config.inference.batch_size
     use_amp = getattr(config.training, "use_amp", True)  # Automatic mixed precision
@@ -382,7 +385,8 @@ def demix(
         with torch.inference_mode():
             # Prepare tensors to accumulate results and count overlaps
             req_shape = (num_instruments,) + mix.shape
-            print("req_shape: ", req_shape)
+            if verbose:
+                print("req_shape: ", req_shape)
             result = torch.zeros(req_shape, dtype=torch.float32)
             counter = torch.zeros(req_shape, dtype=torch.float32)
 

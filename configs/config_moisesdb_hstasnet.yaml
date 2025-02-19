@@ -1,0 +1,101 @@
+audio:
+  sample_rate: 44100
+  num_channels: 2
+  hop_length: 512
+  n_fft: 1024
+  chunk_size: 262144
+  min_mean_abs: 0.0
+
+model:
+  num_channels: 2
+  num_sources: 4
+  time_win_size: 1024
+  time_hop_size: 512
+  spec_win_size: 1024
+  spec_hop_size: 512
+  spec_fft_size: 1024
+  rnn_hidden_size: 768
+
+training:
+  batch_size: 24
+  num_epochs: 100
+  num_steps: 1000
+  lr: 1.43e-4
+  patience: 5
+  reduce_factor: 0.8
+  instruments: ['drums', 'bass', 'other', 'vocals']
+  target_instrument: null
+  device: "cuda"
+  optimizer: "adamw"
+  q: 0.95
+  coarse_loss_clip: true
+  use_amp: true
+  grad_clip: 7.0
+  other_fix: false
+  gradient_accumulation_steps: 1
+  seed: 42
+  train_subset: 0.1
+  valid_subset: 1.0
+  read_metadata_procs: 4
+
+augmentations:
+  enable: true
+  loudness: true
+  loudness_min: 0.6  
+  loudness_max: 1.4
+  mixup: true
+  mixup_probs: !!python/tuple
+    - 0.1  
+    - 0.01
+  mixup_loudness_min: 0.6
+  mixup_loudness_max: 1.4
+  all:
+    channel_shuffle: 0.5
+    random_inverse: 0.1
+    random_polarity: 0.5
+  vocals:
+      pitch_shift: 0.1
+      pitch_shift_min_semitones: -5
+      pitch_shift_max_semitones: 5
+      seven_band_parametric_eq: 0.1
+      seven_band_parametric_eq_min_gain_db: -9
+      seven_band_parametric_eq_max_gain_db: 9
+      tanh_distortion: 0.1
+      tanh_distortion_min: 0.1
+      tanh_distortion_max: 0.7
+  bass:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -2
+    pitch_shift_max_semitones: 2
+    seven_band_parametric_eq: 0.1
+    seven_band_parametric_eq_min_gain_db: -3
+    seven_band_parametric_eq_max_gain_db: 6
+    tanh_distortion: 0.1
+    tanh_distortion_min: 0.1
+    tanh_distortion_max: 0.5
+  drums:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -5
+    pitch_shift_max_semitones: 5
+    seven_band_parametric_eq: 0.1
+    seven_band_parametric_eq_min_gain_db: -9
+    seven_band_parametric_eq_max_gain_db: 9
+    tanh_distortion: 0.1
+    tanh_distortion_min: 0.1
+    tanh_distortion_max: 0.6
+  other:
+    pitch_shift: 0.1
+    pitch_shift_min_semitones: -4
+    pitch_shift_max_semitones: 4
+    gaussian_noise: 0.1
+    gaussian_noise_min_amplitude: 0.001
+    gaussian_noise_max_amplitude: 0.015
+    time_stretch: 0.1
+    time_stretch_min_rate: 0.8
+    time_stretch_max_rate: 1.25
+
+inference:
+  batch_size: 4
+  num_overlap: 4
+  normalize: false
+
